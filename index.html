@@ -1,0 +1,1639 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AdyraForge — Performant Web Engineering &amp; Development</title>
+  <meta name="description" content="We forge websites that work as hard as you do. Specialized in high-performance business websites, custom landing pages, and web applications. Founded by Forge under Adyra Group.">
+  
+  <!-- Preconnect and Load Premium Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;700&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
+  
+  <style>
+    /* DESIGN SYSTEM VARIABLES */
+    :root {
+      --bg-color: #0b0b0d; /* near-black */
+      --accent-gold: #c9a227; /* gold */
+      --accent-gold-hover: #e8c158; /* bright gold */
+      --text-primary: #edeae1; /* warm off-white/bone */
+      --text-secondary: #8b8b93; /* muted grey-purple */
+      --border-color: #2a2a30; /* hairline border */
+      
+      --font-display: 'Space Grotesk', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      --font-body: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      --font-mono: 'JetBrains Mono', SFMono-Regular, Consolas, "Liberation Mono", Menlo, monospace;
+      
+      --max-width: 1200px;
+    }
+
+    /* GLOBAL RESET & BASE STYLES */
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html {
+      scroll-behavior: smooth;
+      scroll-padding-top: 80px; /* nav height offset */
+      background-color: var(--bg-color);
+    }
+
+    body {
+      background-color: var(--bg-color);
+      /* Subtle isometric-inspired technical grid */
+      background-image: 
+        linear-gradient(to right, rgba(42, 42, 48, 0.15) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(42, 42, 48, 0.15) 1px, transparent 1px);
+      background-size: 40px 40px;
+      color: var(--text-primary);
+      font-family: var(--font-body);
+      line-height: 1.5;
+      overflow-x: hidden;
+      position: relative;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+
+    /* ACCESSIBILITY FOCUS STATES */
+    a:focus-visible, 
+    button:focus-visible {
+      outline: 2px solid var(--accent-gold-hover);
+      outline-offset: 4px;
+    }
+
+    .skip-link {
+      position: fixed;
+      top: -100px;
+      left: 20px;
+      background-color: var(--accent-gold);
+      color: var(--bg-color);
+      padding: 10px 20px;
+      z-index: 100002;
+      font-family: var(--font-mono);
+      font-weight: 700;
+      text-transform: uppercase;
+      font-size: 0.8rem;
+      text-decoration: none;
+      border: 1px solid var(--accent-gold-hover);
+      transition: top 0.2s ease;
+    }
+
+    .skip-link:focus {
+      top: 20px;
+    }
+
+    /* NOISE TEXTURE OVERLAY */
+    .noise-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 9999;
+      opacity: 0.03;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+    }
+
+    /* SCROLL PROGRESS BAR */
+    #scroll-progress {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 0%;
+      height: 3px;
+      background: linear-gradient(90deg, var(--accent-gold), var(--accent-gold-hover));
+      z-index: 10001;
+      transition: width 0.05s linear;
+    }
+
+    /* UTILITY / REUSE COMPONENTS */
+    .section-container {
+      max-width: var(--max-width);
+      margin: 0 auto;
+      padding: 0 24px;
+    }
+
+    section {
+      padding: 100px 0;
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    .eyebrow {
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      color: var(--accent-gold);
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      border: 1px solid var(--border-color);
+      padding: 4px 12px;
+      display: inline-block;
+      clip-path: polygon(0 0, 92% 0, 100% 25%, 100% 100%, 8% 100%, 0 75%);
+      background: rgba(42, 42, 48, 0.2);
+    }
+
+    .section-header {
+      margin-bottom: 56px;
+    }
+
+    .section-title {
+      font-family: var(--font-display);
+      font-size: 2.75rem;
+      font-weight: 700;
+      line-height: 1.1;
+      color: var(--text-primary);
+      margin: 16px 0 16px 0;
+    }
+
+    .section-description {
+      color: var(--text-secondary);
+      font-size: 1.05rem;
+      line-height: 1.6;
+      max-width: 600px;
+    }
+
+    /* GEOMETRIC BUTTONS */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-family: var(--font-mono);
+      font-size: 0.8rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      text-decoration: none;
+      padding: 12px 28px;
+      border-radius: 2px; /* Sharp corners constraint */
+      transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+      position: relative;
+      cursor: pointer;
+    }
+
+    .btn-primary {
+      background-color: var(--accent-gold);
+      color: #0b0b0d;
+      border: none;
+      clip-path: polygon(0 0, 93% 0, 100% 25%, 100% 100%, 7% 100%, 0 75%);
+    }
+
+    .btn-primary:hover, 
+    .btn-primary:focus-visible {
+      background-color: var(--accent-gold-hover);
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(232, 193, 88, 0.2);
+    }
+
+    .btn-secondary {
+      background-color: transparent;
+      color: var(--text-primary);
+      border: 1px solid var(--border-color);
+      clip-path: polygon(0 0, 93% 0, 100% 25%, 100% 100%, 7% 100%, 0 75%);
+    }
+
+    .btn-secondary:hover, 
+    .btn-secondary:focus-visible {
+      border-color: var(--accent-gold-hover);
+      color: var(--accent-gold-hover);
+      transform: translateY(-2px);
+    }
+
+    .btn-sm {
+      padding: 8px 18px;
+      font-size: 0.75rem;
+    }
+
+    .btn-lg {
+      padding: 16px 36px;
+      font-size: 0.9rem;
+    }
+
+    /* REVEAL TRANSITION ANIMATIONS */
+    .reveal {
+      opacity: 0;
+      transform: translateY(30px);
+      transition: opacity 0.8s cubic-bezier(0.16, 1, 0.3, 1), transform 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .reveal.active {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    /* STICKY HEADER NAV */
+    .site-header {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      background: rgba(11, 11, 13, 0.85);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border-color);
+      z-index: 10000;
+      transition: background 0.3s ease;
+    }
+
+    .nav-container {
+      max-width: var(--max-width);
+      margin: 0 auto;
+      padding: 16px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .logo-link {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      text-decoration: none;
+      color: var(--text-primary);
+    }
+
+    .logo-svg {
+      transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .logo-link:hover .logo-svg {
+      transform: rotate(5deg) scale(1.05);
+    }
+
+    .brand-text {
+      font-family: var(--font-display);
+      font-size: 1.15rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      color: var(--text-primary);
+    }
+
+    .brand-highlight {
+      color: var(--accent-gold);
+    }
+
+    .nav-menu {
+      display: flex;
+      align-items: center;
+      gap: 40px;
+    }
+
+    .nav-list {
+      display: flex;
+      gap: 32px;
+      list-style: none;
+      margin: 0;
+      padding: 0;
+    }
+
+    .nav-link {
+      font-family: var(--font-mono);
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--text-secondary);
+      text-decoration: none;
+      transition: color 0.2s ease;
+      padding: 8px 0;
+      position: relative;
+    }
+
+    .nav-link:hover, 
+    .nav-link:focus-visible {
+      color: var(--accent-gold-hover);
+    }
+
+    .nav-link::after {
+      content: '';
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      width: 0;
+      height: 1px;
+      background-color: var(--accent-gold-hover);
+      transition: width 0.2s ease;
+    }
+
+    .nav-link:hover::after, 
+    .nav-link:focus-visible::after {
+      width: 100%;
+    }
+
+    .nav-toggle {
+      display: none;
+      background: none;
+      border: none;
+      cursor: pointer;
+      padding: 8px;
+      flex-direction: column;
+      gap: 6px;
+      z-index: 10002;
+    }
+
+    .hamburger-bar {
+      display: block;
+      width: 22px;
+      height: 2px;
+      background-color: var(--text-primary);
+      transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    /* HERO SECTION */
+    .hero-section {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      padding-top: 140px;
+      padding-bottom: 60px;
+      overflow: hidden;
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    .hero-container {
+      width: 100%;
+    }
+
+    .hero-content {
+      max-width: 800px;
+    }
+
+    .hero-title {
+      font-family: var(--font-display);
+      font-size: 4.25rem;
+      font-weight: 700;
+      line-height: 1.08;
+      letter-spacing: -0.01em;
+      color: var(--text-primary);
+      margin: 20px 0 24px 0;
+    }
+
+    /* THE SIGNATURE "FORGE" VISUAL STRIKE */
+    .forge-strike {
+      position: relative;
+      display: inline-block;
+      background: linear-gradient(135deg, var(--accent-gold) 0%, var(--accent-gold-hover) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      font-weight: 700;
+    }
+
+    .forge-strike::after {
+      content: '';
+      position: absolute;
+      left: -4%;
+      right: -4%;
+      top: 52%;
+      height: 3px;
+      background: var(--accent-gold-hover);
+      transform: rotate(-3.5deg) translateY(-50%);
+      transform-origin: center;
+      clip-path: polygon(0 20%, 100% 0%, 98% 100%, 2% 80%);
+      box-shadow: 0 0 8px rgba(232, 193, 88, 0.5);
+    }
+
+    .hero-subtitle {
+      font-size: 1.2rem;
+      color: var(--text-secondary);
+      line-height: 1.6;
+      margin-bottom: 40px;
+      max-width: 600px;
+    }
+
+    .hero-actions {
+      display: flex;
+      gap: 16px;
+    }
+
+    /* TECH STACK INFINITE MARQUEE */
+    .marquee-container {
+      width: 100%;
+      overflow: hidden;
+      border-top: 1px solid var(--border-color);
+      border-bottom: 1px solid var(--border-color);
+      background: rgba(17, 17, 20, 0.5);
+      padding: 20px 0;
+      margin-top: 80px;
+      position: relative;
+    }
+
+    .marquee-track {
+      display: flex;
+      width: max-content;
+      animation: marquee-scroll 24s linear infinite;
+    }
+
+    .marquee-track:hover {
+      animation-play-state: paused;
+    }
+
+    .marquee-content {
+      display: flex;
+      align-items: center;
+      gap: 40px;
+      padding-right: 40px;
+    }
+
+    .marquee-item {
+      font-family: var(--font-mono);
+      font-size: 0.95rem;
+      font-weight: 500;
+      letter-spacing: 0.08em;
+      color: var(--text-primary);
+      text-transform: uppercase;
+      white-space: nowrap;
+    }
+
+    .marquee-divider {
+      color: var(--accent-gold);
+      font-size: 1.2rem;
+    }
+
+    @keyframes marquee-scroll {
+      0% { transform: translateX(0); }
+      100% { transform: translateX(-50%); }
+    }
+
+    /* SERVICES SECTION */
+    .services-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 24px;
+      margin-top: 48px;
+    }
+
+    .service-card {
+      background: rgba(17, 17, 20, 0.3);
+      border: 1px solid var(--border-color);
+      padding: 32px;
+      border-radius: 2px;
+      position: relative;
+      overflow: hidden;
+      transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .service-card:hover {
+      border-color: var(--accent-gold);
+      transform: translateY(-4px);
+      background: rgba(20, 20, 24, 0.5);
+    }
+
+    .service-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 3px;
+      height: 0%;
+      background-color: var(--accent-gold);
+      transition: height 0.3s ease;
+    }
+
+    .service-card:hover::before {
+      height: 100%;
+    }
+
+    .service-card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 24px;
+    }
+
+    .service-tag {
+      font-family: var(--font-mono);
+      font-size: 0.7rem;
+      font-weight: 700;
+      color: var(--accent-gold);
+      border: 1px solid rgba(201, 162, 39, 0.25);
+      padding: 3px 8px;
+      letter-spacing: 0.05em;
+      clip-path: polygon(0 0, 90% 0, 100% 25%, 100% 100%, 10% 100%, 0 75%);
+      background: rgba(201, 162, 39, 0.03);
+    }
+
+    .service-decor-icon {
+      width: 8px;
+      height: 8px;
+      border-right: 1.5px solid var(--border-color);
+      border-top: 1.5px solid var(--border-color);
+      transition: border-color 0.3s ease;
+    }
+
+    .service-card:hover .service-decor-icon {
+      border-color: var(--accent-gold-hover);
+    }
+
+    .service-card-title {
+      font-family: var(--font-display);
+      font-size: 1.45rem;
+      font-weight: 700;
+      margin: 0 0 16px 0;
+      color: var(--text-primary);
+    }
+
+    .service-card-text {
+      color: var(--text-secondary);
+      font-size: 0.95rem;
+      line-height: 1.6;
+      margin-bottom: 24px;
+    }
+
+    .service-card-features {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+      border-top: 1px solid var(--border-color);
+      padding-top: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .service-card-features li {
+      font-size: 0.85rem;
+      color: var(--text-secondary);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .service-card-features li::before {
+      content: '';
+      display: inline-block;
+      width: 4px;
+      height: 4px;
+      background-color: var(--accent-gold);
+      transform: rotate(45deg);
+    }
+
+    /* WORK SECTION */
+    .featured-project-card {
+      display: grid;
+      grid-template-columns: 1.2fr 1fr;
+      border: 1px solid var(--border-color);
+      background: rgba(17, 17, 20, 0.3);
+      border-radius: 2px;
+      margin-top: 48px;
+      overflow: hidden;
+      transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .featured-project-card:hover {
+      border-color: var(--accent-gold);
+      box-shadow: 0 12px 36px rgba(0, 0, 0, 0.3);
+    }
+
+    .project-graphics {
+      position: relative;
+      border-right: 1px solid var(--border-color);
+      overflow: hidden;
+      aspect-ratio: 16/10;
+      background-color: #111114;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .project-graphic-svg {
+      width: 100%;
+      height: 100%;
+      display: block;
+      transition: transform 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .featured-project-card:hover .project-graphic-svg {
+      transform: scale(1.04);
+    }
+
+    .status-badge {
+      position: absolute;
+      top: 20px;
+      left: 20px;
+      font-family: var(--font-mono);
+      font-size: 0.65rem;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      padding: 6px 12px;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      z-index: 10;
+      border-radius: 2px;
+    }
+
+    .status-badge.live {
+      background: rgba(11, 11, 13, 0.92);
+      border: 1px solid var(--accent-gold);
+      color: var(--accent-gold);
+      clip-path: polygon(0 0, 92% 0, 100% 25%, 100% 100%, 8% 100%, 0 75%);
+    }
+
+    .status-badge.concept {
+      background: rgba(42, 42, 48, 0.85);
+      border: 1px solid var(--border-color);
+      color: var(--text-secondary);
+      clip-path: polygon(0 0, 92% 0, 100% 25%, 100% 100%, 8% 100%, 0 75%);
+    }
+
+    .status-dot {
+      width: 6px;
+      height: 6px;
+      background-color: var(--accent-gold-hover);
+      border-radius: 50%;
+      display: inline-block;
+      animation: pulse-dot-indicator 1.6s infinite;
+    }
+
+    @keyframes pulse-dot-indicator {
+      0% {
+        transform: scale(0.9);
+        box-shadow: 0 0 0 0 rgba(232, 193, 88, 0.6);
+      }
+      70% {
+        transform: scale(1.1);
+        box-shadow: 0 0 0 6px rgba(232, 193, 88, 0);
+      }
+      100% {
+        transform: scale(0.9);
+        box-shadow: 0 0 0 0 rgba(232, 193, 88, 0);
+      }
+    }
+
+    .project-details {
+      padding: 48px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+    }
+
+    .project-tech-chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 20px;
+    }
+
+    .tech-tag {
+      font-family: var(--font-mono);
+      font-size: 0.7rem;
+      color: var(--text-primary);
+      background: rgba(42, 42, 48, 0.35);
+      border: 1px solid var(--border-color);
+      padding: 4px 10px;
+      border-radius: 2px;
+      transition: all 0.2s ease;
+      letter-spacing: 0.05em;
+    }
+
+    .tech-tag:hover {
+      border-color: var(--accent-gold);
+      color: var(--accent-gold-hover);
+    }
+
+    .project-title {
+      font-family: var(--font-display);
+      font-size: 1.85rem;
+      font-weight: 700;
+      color: var(--text-primary);
+      margin-bottom: 16px;
+    }
+
+    .project-text {
+      color: var(--text-secondary);
+      font-size: 0.95rem;
+      line-height: 1.65;
+      margin-bottom: 32px;
+    }
+
+    .project-link-btn {
+      align-self: flex-start;
+    }
+
+    .btn-svg-arrow {
+      margin-left: 8px;
+      transition: transform 0.2s ease;
+    }
+
+    .btn:hover .btn-svg-arrow {
+      transform: translate(2px, -2px);
+    }
+
+    .concept-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 24px;
+      margin-top: 24px;
+    }
+
+    .concept-card {
+      background: rgba(17, 17, 20, 0.25);
+      border: 1px solid var(--border-color);
+      padding: 32px;
+      border-radius: 2px;
+      transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+      position: relative;
+    }
+
+    .concept-card:hover {
+      border-color: rgba(201, 162, 39, 0.45);
+      background: rgba(20, 20, 24, 0.4);
+      transform: translateY(-2px);
+    }
+
+    .concept-card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+    }
+
+    .concept-title {
+      font-family: var(--font-display);
+      font-size: 1.35rem;
+      font-weight: 700;
+      margin: 0 0 12px 0;
+      color: var(--text-primary);
+    }
+
+    .concept-text {
+      color: var(--text-secondary);
+      font-size: 0.9rem;
+      line-height: 1.6;
+      margin-bottom: 24px;
+    }
+
+    /* ABOUT SECTION */
+    .about-layout {
+      display: grid;
+      grid-template-columns: 1fr 1.2fr;
+      gap: 64px;
+      align-items: center;
+    }
+
+    .about-graphics {
+      width: 100%;
+      border: 1px solid var(--border-color);
+      background-color: #111114;
+      aspect-ratio: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+    }
+
+    .about-svg-blueprint {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+
+    .about-bio {
+      color: var(--text-secondary);
+      font-size: 1rem;
+      line-height: 1.7;
+      margin-bottom: 20px;
+    }
+
+    .about-bio strong {
+      color: var(--text-primary);
+      font-weight: 600;
+    }
+
+    .about-skills {
+      margin-top: 32px;
+      border-top: 1px solid var(--border-color);
+      padding-top: 24px;
+    }
+
+    .skills-title {
+      display: block;
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      color: var(--accent-gold);
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      margin-bottom: 16px;
+    }
+
+    .skills-chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .chip-tag {
+      font-family: var(--font-mono);
+      font-size: 0.7rem;
+      color: var(--text-primary);
+      background: rgba(42, 42, 48, 0.3);
+      border: 1px solid var(--border-color);
+      padding: 6px 12px;
+      border-radius: 2px;
+      transition: all 0.2s ease;
+    }
+
+    .chip-tag:hover {
+      border-color: var(--accent-gold);
+      color: var(--accent-gold-hover);
+    }
+
+    /* CONTACT SECTION */
+    .contact-section {
+      padding: 120px 0 160px 0;
+      border-bottom: none; /* Last section */
+    }
+
+    .contact-card-box {
+      max-width: 800px;
+      margin: 0 auto;
+      text-align: center;
+      border: 1px solid var(--border-color);
+      background: rgba(17, 17, 20, 0.4);
+      padding: 64px 48px;
+      border-radius: 2px;
+      position: relative;
+    }
+
+    /* Decorative geometric crosshairs */
+    .contact-card-box::after {
+      content: '';
+      position: absolute;
+      bottom: -1px;
+      right: 32px;
+      width: 60px;
+      height: 1px;
+      background: var(--accent-gold);
+    }
+
+    .contact-card-box::before {
+      content: '';
+      position: absolute;
+      top: -1px;
+      left: 32px;
+      width: 60px;
+      height: 1px;
+      background: var(--accent-gold);
+    }
+
+    .contact-title {
+      font-family: var(--font-display);
+      font-size: 2.5rem;
+      font-weight: 700;
+      line-height: 1.15;
+      color: var(--text-primary);
+      margin: 16px 0 16px 0;
+    }
+
+    .contact-text {
+      color: var(--text-secondary);
+      font-size: 1.05rem;
+      line-height: 1.6;
+      max-width: 540px;
+      margin: 0 auto 40px auto;
+    }
+
+    .contact-cta-wrapper {
+      margin-bottom: 48px;
+    }
+
+    .contact-networks {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .networks-label {
+      font-family: var(--font-mono);
+      font-size: 0.7rem;
+      color: var(--text-secondary);
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+    }
+
+    .networks-links {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .network-link {
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      color: var(--text-primary);
+      text-decoration: none;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      transition: color 0.2s ease;
+      padding: 4px 8px;
+    }
+
+    .network-link:hover, 
+    .network-link:focus-visible {
+      color: var(--accent-gold);
+    }
+
+    .networks-separator {
+      color: var(--border-color);
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      user-select: none;
+    }
+
+    /* FOOTER */
+    .site-footer {
+      border-top: 1px solid var(--border-color);
+      background-color: #08080a;
+      padding: 40px 0;
+      position: relative;
+      z-index: 10;
+    }
+
+    .footer-container {
+      max-width: var(--max-width);
+      margin: 0 auto;
+      padding: 0 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .copyright {
+      font-family: var(--font-mono);
+      font-size: 0.7rem;
+      color: var(--text-secondary);
+      letter-spacing: 0.05em;
+      margin: 0;
+      text-transform: uppercase;
+    }
+
+    /* RESPONSIVE MEDIA QUERIES */
+    @media (max-width: 1024px) {
+      .hero-title {
+        font-size: 3.5rem;
+      }
+      .about-layout {
+        grid-template-columns: 1fr;
+        gap: 48px;
+      }
+      .about-graphics {
+        max-width: 420px;
+        margin: 0 auto;
+      }
+    }
+
+    @media (max-width: 780px) {
+      /* Navigation collapse menu */
+      .nav-toggle {
+        display: flex;
+      }
+
+      .nav-menu {
+        position: fixed;
+        top: 0;
+        right: -100%;
+        width: 100%;
+        height: 100vh;
+        background: rgba(11, 11, 13, 0.98);
+        backdrop-filter: blur(16px);
+        -webkit-backdrop-filter: blur(16px);
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        gap: 48px;
+        transition: right 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+        border-left: 1px solid var(--border-color);
+      }
+
+      .nav-menu.active {
+        right: 0;
+      }
+
+      .nav-list {
+        flex-direction: column;
+        align-items: center;
+        gap: 32px;
+      }
+
+      .nav-link {
+        font-size: 1.1rem;
+      }
+
+      .nav-toggle.active .hamburger-bar:nth-child(1) {
+        transform: translateY(8px) rotate(45deg);
+        background-color: var(--accent-gold);
+      }
+
+      .nav-toggle.active .hamburger-bar:nth-child(2) {
+        opacity: 0;
+      }
+
+      .nav-toggle.active .hamburger-bar:nth-child(3) {
+        transform: translateY(-8px) rotate(-45deg);
+        background-color: var(--accent-gold);
+      }
+
+      body.menu-open {
+        overflow: hidden;
+      }
+
+      /* Sections & Grids stack */
+      section {
+        padding: 80px 0;
+      }
+
+      .hero-section {
+        padding-top: 120px;
+      }
+
+      .hero-title {
+        font-size: 2.65rem;
+      }
+
+      .hero-actions {
+        flex-direction: column;
+        gap: 12px;
+      }
+
+      .btn {
+        width: 100%;
+      }
+
+      .services-grid {
+        grid-template-columns: 1fr;
+        gap: 20px;
+      }
+
+      .featured-project-card {
+        grid-template-columns: 1fr;
+      }
+
+      .project-graphics {
+        border-right: none;
+        border-bottom: 1px solid var(--border-color);
+      }
+
+      .project-details {
+        padding: 32px 20px;
+      }
+
+      .concept-grid {
+        grid-template-columns: 1fr;
+        gap: 20px;
+      }
+
+      .contact-card-box {
+        padding: 48px 20px;
+      }
+
+      .contact-title {
+        font-size: 1.95rem;
+      }
+
+      .footer-container {
+        flex-direction: column;
+        gap: 20px;
+        text-align: center;
+      }
+    }
+
+    /* REDUCED MOTION PREFERENCE HANDLER */
+    @media (prefers-reduced-motion: reduce) {
+      .reveal {
+        opacity: 1 !important;
+        transform: none !important;
+        transition: none !important;
+      }
+
+      .marquee-track {
+        animation: none !important;
+      }
+
+      * {
+        animation-delay: 0s !important;
+        animation-duration: 0s !important;
+        transition-duration: 0s !important;
+        scroll-behavior: auto !important;
+      }
+      
+      .logo-link:hover .logo-svg,
+      .featured-project-card:hover .project-graphic-svg {
+        transform: none !important;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Screen Reader Skip Navigation Link -->
+  <a href="#main-content" class="skip-link">Skip to Content</a>
+
+  <!-- Thin Fixed Scroll Progress Indicator -->
+  <div id="scroll-progress" aria-hidden="true"></div>
+
+  <!-- Ambient Low-Opacity SVG Noise Texture -->
+  <div class="noise-overlay" aria-hidden="true"></div>
+
+  <!-- STICKY SITE NAVIGATION -->
+  <header class="site-header">
+    <div class="nav-container">
+      <a href="#" class="logo-link" aria-label="AdyraForge Home">
+        <!-- Geometric AF Monogram Inside Hexagonal Shell -->
+        <svg class="logo-svg" width="38" height="38" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <polygon points="20,2 38,11 38,29 20,38 2,29 2,11" stroke="var(--border-color)" stroke-width="1.5" fill="rgba(11, 11, 13, 0.8)" />
+          <!-- Monogram A diagonal + center stem -->
+          <path d="M12 28 L20 10 L20 28" stroke="var(--accent-gold)" stroke-width="2.5" stroke-linecap="square" stroke-linejoin="miter"/>
+          <path d="M16 20 H20" stroke="var(--accent-gold)" stroke-width="2.5" stroke-linecap="square"/>
+          <!-- Monogram F bars sharing central stem -->
+          <path d="M20 10 H28" stroke="var(--accent-gold-hover)" stroke-width="2.5" stroke-linecap="square"/>
+          <path d="M20 18 H26" stroke="var(--accent-gold-hover)" stroke-width="2.5" stroke-linecap="square"/>
+        </svg>
+        <span class="brand-text">ADYRA<span class="brand-highlight">FORGE</span></span>
+      </a>
+      
+      <!-- Responsive Mobile Toggle Hamburger Button -->
+      <button class="nav-toggle" aria-expanded="false" aria-controls="nav-menu" aria-label="Toggle Navigation Menu">
+        <span class="hamburger-bar"></span>
+        <span class="hamburger-bar"></span>
+        <span class="hamburger-bar"></span>
+      </button>
+
+      <!-- Navigation Drawer/Bar links -->
+      <nav id="nav-menu" class="nav-menu">
+        <ul class="nav-list">
+          <li><a href="#work" class="nav-link">Work</a></li>
+          <li><a href="#services" class="nav-link">Services</a></li>
+          <li><a href="#about" class="nav-link">About</a></li>
+        </ul>
+        <div class="nav-cta-wrapper">
+          <a href="#contact" class="btn btn-primary btn-sm">Start a project</a>
+        </div>
+      </nav>
+    </div>
+  </header>
+
+  <!-- MAIN VIEWPORT CONTENT -->
+  <main id="main-content">
+
+    <!-- HERO SECTION -->
+    <section class="hero-section reveal" id="hero">
+      <div class="hero-container section-container">
+        <div class="hero-content">
+          <div class="eyebrow-wrapper">
+            <span class="eyebrow">Freelance Web Development</span>
+          </div>
+          <h1 class="hero-title">
+            We <span class="forge-strike">forge</span> websites <br>
+            that work as hard as you do
+          </h1>
+          <p class="hero-subtitle">
+            Engineered for performance, designed with surgical precision, and built to scale. We turn high-growth digital blueprints into stable, functional web assets.
+          </p>
+          <div class="hero-actions">
+            <a href="#work" class="btn btn-primary">See the work</a>
+            <a href="#contact" class="btn btn-secondary">Start a project</a>
+          </div>
+        </div>
+      </div>
+      
+      <!-- TECH STACK HORIZONTAL MARQUEE -->
+      <div class="marquee-container" aria-label="Technologies we employ">
+        <div class="marquee-track">
+          <div class="marquee-content">
+            <span class="marquee-item">HTML/CSS/JS</span>
+            <span class="marquee-divider">&bull;</span>
+            <span class="marquee-item">React</span>
+            <span class="marquee-divider">&bull;</span>
+            <span class="marquee-item">Tailwind</span>
+            <span class="marquee-divider">&bull;</span>
+            <span class="marquee-item">Node.js</span>
+            <span class="marquee-divider">&bull;</span>
+            <span class="marquee-item">Python—Django/Flask</span>
+            <span class="marquee-divider">&bull;</span>
+            <span class="marquee-item">Java</span>
+            <span class="marquee-divider">&bull;</span>
+          </div>
+          <!-- Duplicate content to construct dynamic, seamless infinite scroll looping -->
+          <div class="marquee-content" aria-hidden="true">
+            <span class="marquee-item">HTML/CSS/JS</span>
+            <span class="marquee-divider">&bull;</span>
+            <span class="marquee-item">React</span>
+            <span class="marquee-divider">&bull;</span>
+            <span class="marquee-item">Tailwind</span>
+            <span class="marquee-divider">&bull;</span>
+            <span class="marquee-item">Node.js</span>
+            <span class="marquee-divider">&bull;</span>
+            <span class="marquee-item">Python—Django/Flask</span>
+            <span class="marquee-divider">&bull;</span>
+            <span class="marquee-item">Java</span>
+            <span class="marquee-divider">&bull;</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SERVICES SECTION -->
+    <section class="services-section reveal" id="services">
+      <div class="section-container">
+        <div class="section-header">
+          <span class="eyebrow">Capabilities</span>
+          <h2 class="section-title">Services Portfolio</h2>
+          <p class="section-description">We build digital interfaces designed for operational durability and commercial conversion.</p>
+        </div>
+        
+        <div class="services-grid">
+          <!-- Websites -->
+          <div class="service-card">
+            <div class="service-card-header">
+              <span class="service-tag">SITE</span>
+              <div class="service-decor-icon" aria-hidden="true"></div>
+            </div>
+            <h3 class="service-card-title">Websites</h3>
+            <p class="service-card-text">
+              Complete multi-page platforms designed to represent your brand, scale with traffic, and establish trust. Optimized for search accessibility and structural stability.
+            </p>
+            <ul class="service-card-features">
+              <li>Custom Architectural Layouts</li>
+              <li>Robust SEO Foundation</li>
+              <li>Integrated Responsive Designs</li>
+            </ul>
+          </div>
+          
+          <!-- Landing Pages -->
+          <div class="service-card">
+            <div class="service-card-header">
+              <span class="service-tag">LANDING</span>
+              <div class="service-decor-icon" aria-hidden="true"></div>
+            </div>
+            <h3 class="service-card-title">Landing Pages</h3>
+            <p class="service-card-text">
+              High-converting single-page campaigns built with surgical focus. Fast-loading, responsive, and specifically structured to convert traffic into pipeline prospects.
+            </p>
+            <ul class="service-card-features">
+              <li>High Performance Load Times</li>
+              <li>Conversion-Optimized Flow</li>
+              <li>Structured Call to Actions</li>
+            </ul>
+          </div>
+          
+          <!-- Web Applications -->
+          <div class="service-card">
+            <div class="service-card-header">
+              <span class="service-tag">APP</span>
+              <div class="service-decor-icon" aria-hidden="true"></div>
+            </div>
+            <h3 class="service-card-title">Web Applications</h3>
+            <p class="service-card-text">
+              Custom systems and dashboard applications built with React, Node, and Python. Designed to run your operations and manage user interactions securely.
+            </p>
+            <ul class="service-card-features">
+              <li>Reactive State Systems</li>
+              <li>Secure API Integrations</li>
+              <li>Optimized Performance Scaling</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SELECTED WORK SECTION -->
+    <section class="work-section reveal" id="work">
+      <div class="section-container">
+        <div class="section-header">
+          <span class="eyebrow">Registry</span>
+          <h2 class="section-title">Selected Works</h2>
+          <p class="section-description">A curated selection of our work, ranging from active client deployments to conceptual systems.</p>
+        </div>
+        
+        <!-- FEATURED REAL DEPLOYMENT CARD -->
+        <div class="featured-project-card">
+          <div class="project-graphics">
+            <!-- Geometric CSS/SVG graphic representing the culinary/dining project -->
+            <svg class="project-graphic-svg" viewBox="0 0 600 350" fill="none" xmlns="http://www.w3.org/2000/svg" aria-label="Restaurant Website Blueprint Artwork">
+              <rect width="600" height="350" fill="#111114" />
+              <!-- Background blueprint circles -->
+              <circle cx="300" cy="175" r="110" stroke="#1d1d22" stroke-width="1.5" />
+              <circle cx="300" cy="175" r="80" stroke="var(--accent-gold)" stroke-width="1" stroke-dasharray="6 4" opacity="0.8" />
+              <circle cx="300" cy="175" r="50" stroke="#2a2a30" stroke-width="1" />
+              <!-- Crosshair lines -->
+              <line x1="80" y1="175" x2="520" y2="175" stroke="#1d1d22" stroke-width="1" />
+              <line x1="300" y1="40" x2="300" y2="310" stroke="#1d1d22" stroke-width="1" />
+              <!-- Accent geometry -->
+              <polygon points="300,135 320,175 300,215 280,175" stroke="var(--accent-gold-hover)" stroke-width="1.5" fill="rgba(201, 162, 39, 0.05)" />
+              <!-- Text element inside art -->
+              <text x="300" y="260" text-anchor="middle" fill="var(--text-secondary)" font-family="var(--font-mono)" font-size="10" letter-spacing="6">L'ATELIER DE GASTRONOMIE</text>
+            </svg>
+            <span class="status-badge live">
+              <span class="status-dot"></span>
+              SHIPPED &amp; LIVE
+            </span>
+          </div>
+          
+          <div class="project-details">
+            <div class="project-tech-chips">
+              <span class="tech-tag">HTML/CSS/JS</span>
+              <span class="tech-tag">NETLIFY</span>
+              <span class="tech-tag">RESPONSIVE</span>
+            </div>
+            <h3 class="project-title">Culinary Atelier Page</h3>
+            <p class="project-text">
+              A premium responsive website built for fine dining establishments. Features dynamic menus, custom layout structures, optimized media presentation, and custom script integrations for interactive bookings and map location details.
+            </p>
+            <a href="https://phenomenal-belekoy-881bf4.netlify.app/" target="_blank" rel="noopener noreferrer" class="btn btn-primary btn-sm project-link-btn" aria-label="Launch Culinary Atelier Page in a new tab">
+              Launch Site
+              <svg class="btn-svg-arrow" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="7" y1="17" x2="17" y2="7"></line>
+                <polyline points="7 7 17 7 17 17"></polyline>
+              </svg>
+            </a>
+          </div>
+        </div>
+        
+        <!-- CONCEPT PROJECT GRID -->
+        <div class="concept-grid">
+          
+          <!-- Concept Card 1 -->
+          <div class="concept-card">
+            <div class="concept-card-header">
+              <span class="status-badge concept">CONCEPT BUILD</span>
+              <div class="service-decor-icon" aria-hidden="true"></div>
+            </div>
+            <h4 class="concept-title">Nexus Operations Dashboard</h4>
+            <p class="concept-text">
+              A complex layout concept designed for enterprise resource scheduling and operations logging. Designed to present rich data formats and responsive controls.
+            </p>
+            <div class="project-tech-chips">
+              <span class="tech-tag">REACT</span>
+              <span class="tech-tag">NODE.JS</span>
+              <span class="tech-tag">DJANGO</span>
+            </div>
+          </div>
+          
+          <!-- Concept Card 2 -->
+          <div class="concept-card">
+            <div class="concept-card-header">
+              <span class="status-badge concept">CONCEPT BUILD</span>
+              <div class="service-decor-icon" aria-hidden="true"></div>
+            </div>
+            <h4 class="concept-title">Aether Product Launch</h4>
+            <p class="concept-text">
+              A single-page marketing concept focusing on hardware releases. Prominently displays custom interactive sections, and newsletter waitlist interfaces.
+            </p>
+            <div class="project-tech-chips">
+              <span class="tech-tag">HTML5</span>
+              <span class="tech-tag">TAILWIND</span>
+              <span class="tech-tag">JAVASCRIPT</span>
+            </div>
+          </div>
+          
+        </div>
+      </div>
+    </section>
+
+    <!-- ABOUT SECTION -->
+    <section class="about-section reveal" id="about">
+      <div class="section-container">
+        <div class="about-layout">
+          <div class="about-graphics">
+            <!-- Geometric Blueprint System Concept Map -->
+            <svg class="about-svg-blueprint" viewBox="0 0 400 400" fill="none" xmlns="http://www.w3.org/2000/svg" aria-label="Architectural Concept Wireframe">
+              <rect width="400" height="400" fill="#111114" stroke="var(--border-color)" stroke-width="1.5" />
+              <!-- Isometric structural box -->
+              <path d="M200 60 L330 135 L330 275 L200 350 L70 275 L70 135 Z" stroke="#1d1d22" stroke-width="1.5" />
+              <path d="M200 60 L200 350" stroke="#1d1d22" stroke-width="1.5" />
+              <path d="M70 135 L200 210 L330 135" stroke="#1d1d22" stroke-width="1.5" />
+              <path d="M70 275 L200 210 L330 275" stroke="#1d1d22" stroke-width="1.5" />
+              <!-- Glowing/active Core Polygon -->
+              <polygon points="200,150 255,182 255,246 200,278 145,246 145,182" stroke="var(--accent-gold)" stroke-width="2" fill="rgba(201, 162, 39, 0.04)" />
+              <line x1="200" y1="150" x2="200" y2="278" stroke="var(--accent-gold)" stroke-width="1.2" />
+              <line x1="145" y1="182" x2="255" y2="246" stroke="var(--accent-gold)" stroke-width="1" />
+              <line x1="145" y1="246" x2="255" y2="182" stroke="var(--accent-gold)" stroke-width="1" />
+              <!-- Nodes -->
+              <circle cx="200" cy="60" r="3.5" fill="var(--accent-gold-hover)" />
+              <circle cx="330" cy="135" r="3.5" fill="var(--accent-gold-hover)" />
+              <circle cx="330" cy="275" r="3.5" fill="var(--accent-gold-hover)" />
+              <circle cx="200" cy="350" r="3.5" fill="var(--accent-gold-hover)" />
+              <circle cx="70" cy="275" r="3.5" fill="var(--accent-gold-hover)" />
+              <circle cx="70" cy="135" r="3.5" fill="var(--accent-gold-hover)" />
+              
+              <!-- Blueprint text mark -->
+              <text x="200" y="320" text-anchor="middle" fill="var(--accent-gold)" font-family="var(--font-mono)" font-size="9" letter-spacing="4">SYSTEM ARCHITECTURE</text>
+            </svg>
+          </div>
+          
+          <div class="about-info">
+            <span class="eyebrow">Background</span>
+            <h2 class="section-title">Behind the Forge</h2>
+            <p class="about-bio">
+              I’m <strong>Forge</strong>, a solo, remote web engineer. Operating as the primary developer behind <strong>AdyraForge</strong>—a freelance brand operating under the <strong>Adyra Group</strong> umbrella—my commitment is to deliver high-quality, high-performance web products.
+            </p>
+            <p class="about-bio">
+              I specialize in combining architectural logic with creative design aesthetics. Every line of code is written with functional stability, layout accuracy, and fast loading performance in mind. While AdyraForge serves clients as an agile freelance operation today, the long-term blueprint is to scale these structures into a full-scale independent technology firm.
+            </p>
+            
+            <!-- Skill Chips Section -->
+            <div class="about-skills">
+              <span class="skills-title">Operational Stack</span>
+              <div class="skills-chips">
+                <span class="chip-tag">HTML5</span>
+                <span class="chip-tag">CSS3</span>
+                <span class="chip-tag">JAVASCRIPT</span>
+                <span class="chip-tag">REACT</span>
+                <span class="chip-tag">TAILWIND</span>
+                <span class="chip-tag">NODE.JS</span>
+                <span class="chip-tag">PYTHON</span>
+                <span class="chip-tag">DJANGO/FLASK</span>
+                <span class="chip-tag">JAVA</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- CONTACT SECTION -->
+    <section class="contact-section reveal" id="contact">
+      <div class="section-container">
+        <div class="contact-card-box">
+          <span class="eyebrow">Initiation</span>
+          <h2 class="contact-title">Start a Project</h2>
+          <p class="contact-text">
+            Whether you need a custom landing page, business website, or dynamic web application, we are open to collaboration. Get in touch to schedule a system blueprint analysis.
+          </p>
+          
+          <div class="contact-cta-wrapper">
+            <a href="mailto:forgeadyra@gmail.com" class="btn btn-primary btn-lg" id="email-cta-btn">
+              forgeadyra@gmail.com
+              <!-- Mail Icon -->
+              <svg class="btn-svg-arrow" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-left: 10px;">
+                <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
+                <polyline points="22,6 12,13 2,6"></polyline>
+              </svg>
+            </a>
+          </div>
+          
+          <div class="contact-networks">
+            <span class="networks-label">External Registers</span>
+            <div class="networks-links">
+              <a href="https://fiverr.com/adyraforge" target="_blank" rel="noopener noreferrer" class="network-link" aria-label="AdyraForge Fiverr profile in a new tab">
+                <svg width="14" height="14" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-6.5 13.5h-2v-5h2v5zm0-6h-2v-2h2v2z"/>
+                </svg>
+                Fiverr
+              </a>
+              <span class="networks-separator">/</span>
+              <a href="https://github.com/forgeadyra" target="_blank" rel="noopener noreferrer" class="network-link" aria-label="Forge Github profile in a new tab">
+                <svg width="14" height="14" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                  <path fill-rule="evenodd" clip-rule="evenodd" d="M12 2C6.477 2 2 6.477 2 12c0 4.42 2.865 8.166 6.839 9.489.5.092.682-.217.682-.482 0-.237-.008-.866-.013-1.7-2.782.603-3.369-1.34-3.369-1.34-.454-1.156-1.11-1.464-1.11-1.464-.908-.62.069-.608.069-.608 1.003.07 1.531 1.03 1.531 1.03.892 1.529 2.341 1.087 2.91.831.092-.646.35-1.086.636-1.336-2.22-.253-4.555-1.11-4.555-4.943 0-1.091.39-1.984 1.029-2.683-.103-.253-.446-1.27.098-2.647 0 0 .84-.269 2.75 1.025A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.294 2.747-1.025 2.747-1.025.546 1.377.203 2.394.1 2.647.64.699 1.028 1.592 1.028 2.683 0 3.842-2.339 4.687-4.566 4.935.359.309.678.919.678 1.852 0 1.336-.012 2.415-.012 2.743 0 .267.18.578.688.48C19.137 20.162 22 16.418 22 12c0-5.523-4.478-10-10-10z" />
+                </svg>
+                GitHub
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- FOOTER -->
+  <footer class="site-footer">
+    <div class="footer-container">
+      <div class="footer-left">
+        <!-- Footer geometric logo representation -->
+        <svg width="32" height="32" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg" aria-label="AdyraForge Copyright Logo">
+          <polygon points="20,2 38,11 38,29 20,38 2,29 2,11" stroke="var(--border-color)" stroke-width="1.5" fill="none" />
+          <path d="M12 28 L20 10 L20 28" stroke="var(--accent-gold)" stroke-width="2.5" stroke-linecap="square" stroke-linejoin="miter"/>
+          <path d="M16 20 H20" stroke="var(--accent-gold)" stroke-width="2.5" stroke-linecap="square"/>
+          <path d="M20 10 H28" stroke="var(--accent-gold-hover)" stroke-width="2.5" stroke-linecap="square"/>
+          <path d="M20 18 H26" stroke="var(--accent-gold-hover)" stroke-width="2.5" stroke-linecap="square"/>
+        </svg>
+      </div>
+      <div class="footer-right">
+        <p class="copyright">&copy; 2026 ADYRAFORGE. A member of Adyra Group. All rights reserved.</p>
+      </div>
+    </div>
+  </footer>
+
+  <!-- SCRIPT LOGIC -->
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      
+      // 1. SCROLL PROGRESS INDICATOR
+      const scrollProgress = document.getElementById('scroll-progress');
+      const updateScrollProgress = () => {
+        const scrollTop = window.scrollY || document.documentElement.scrollTop;
+        const scrollHeight = document.documentElement.scrollHeight - document.documentElement.clientHeight;
+        if (scrollHeight > 0) {
+          const scrollPercent = (scrollTop / scrollHeight) * 100;
+          scrollProgress.style.width = `${scrollPercent}%`;
+        } else {
+          scrollProgress.style.width = '0%';
+        }
+      };
+      
+      window.addEventListener('scroll', updateScrollProgress, { passive: true });
+      updateScrollProgress(); // Initial invoke
+      
+      // 2. MOBILE NAVIGATION DRAWER SYSTEM
+      const navToggle = document.querySelector('.nav-toggle');
+      const navMenu = document.querySelector('.nav-menu');
+      const navLinks = document.querySelectorAll('.nav-link, .nav-menu .btn');
+      
+      const toggleMenu = () => {
+        const isOpen = navMenu.classList.contains('active');
+        navToggle.setAttribute('aria-expanded', !isOpen);
+        navMenu.classList.toggle('active');
+        navToggle.classList.toggle('active');
+        document.body.classList.toggle('menu-open');
+      };
+      
+      const closeMenu = () => {
+        navToggle.setAttribute('aria-expanded', 'false');
+        navMenu.classList.remove('active');
+        navToggle.classList.remove('active');
+        document.body.classList.remove('menu-open');
+      };
+      
+      navToggle.addEventListener('click', toggleMenu);
+      
+      navLinks.forEach(link => {
+        link.addEventListener('click', closeMenu);
+      });
+      
+      // Close mobile menu if clicked outside of header bounds
+      document.addEventListener('click', (e) => {
+        if (navMenu.classList.contains('active') && !e.target.closest('.site-header')) {
+          closeMenu();
+        }
+      });
+      
+      // Escape key to close navigation menu for accessibility
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && navMenu.classList.contains('active')) {
+          closeMenu();
+          navToggle.focus();
+        }
+      });
+
+      // 3. INTERSECTION OBSERVER REVEAL TRANSITIONS
+      const revealElements = document.querySelectorAll('.reveal');
+      
+      // Setup options with an offset threshold
+      const revealOptions = {
+        threshold: 0.08,
+        rootMargin: '0px 0px -60px 0px'
+      };
+      
+      const revealCallback = (entries, observer) => {
+        entries.forEach(entry => {
+          if (entry.isIntersecting) {
+            entry.target.classList.add('active');
+            observer.unobserve(entry.target); // Trigger transition only once
+          }
+        });
+      };
+      
+      const observer = new IntersectionObserver(revealCallback, revealOptions);
+      
+      // Check prefers-reduced-motion to skip entry transformations
+      const motionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
+      
+      const handleMotionPreference = () => {
+        if (motionQuery.matches) {
+          revealElements.forEach(el => {
+            el.classList.add('active');
+          });
+        } else {
+          revealElements.forEach(el => {
+            observer.observe(el);
+          });
+        }
+      };
+      
+      handleMotionPreference();
+      motionQuery.addEventListener('change', handleMotionPreference);
+
+      // 4. MARQUEE CLONE AND MOTION ADJUSTMENT
+      // Ensure clone matches properly. If screen scaling or resizing happens, 
+      // check reduced motion state to adjust animation playback states dynamically.
+      const marqueeTrack = document.querySelector('.marquee-track');
+      
+      const handleMarqueeMotion = () => {
+        if (motionQuery.matches) {
+          marqueeTrack.style.animationPlayState = 'paused';
+        } else {
+          marqueeTrack.style.animationPlayState = 'running';
+        }
+      };
+      
+      handleMarqueeMotion();
+      motionQuery.addEventListener('change', handleMarqueeMotion);
+    });
+  </script>
+</body>
+</html>

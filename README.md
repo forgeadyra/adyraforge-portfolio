@@ -34,7 +34,10 @@ Fill in both files. Nothing in them is ever committed (`.env*` is gitignored; on
 docker compose up -d --build --wait
 docker compose exec backend python manage.py migrate
 docker compose exec backend python manage.py createcachetable
+docker compose exec backend python manage.py seed_portfolio
 ```
+
+`seed_portfolio` loads the real services and projects (L'Atelier de Gastronomie, MediCare Plus, mėntality, Nexus, Aether). It is idempotent and never overwrites admin edits; `--force` resets the seeded fields. It deliberately seeds **no** result metrics, client names or testimonials. Add those in the admin once confirmed. mėntality stays unpublished until it has case-study copy.
 
 | Service  | URL                                      |
 | -------- | ---------------------------------------- |
@@ -114,6 +117,24 @@ Production refuses to boot (`ImproperlyConfigured`) if any of these is missing o
 
 **Frontend.** `NEXT_PUBLIC_API_URL` must be `https://` for production builds; the build fails otherwise. Never put a secret in a `NEXT_PUBLIC_*` variable.
 
+## Data model
+
+| App | Models |
+| --- | --- |
+| `core` | `AuditLog` (append-only: logins, failed logins, logouts, every admin add/change/delete, with an IP hash), shared upload validators, private storage |
+| `portfolio` | `Service`, `Technology`, `Project` (+ `ProjectImage` gallery), `Testimonial`, `BlogPost` |
+| `leads` | `Lead` (pipeline new → contacted → proposal → won, or lost from any open stage; enforced on save), `PlannerSubmission` |
+| `clients` | `ClientProfile`, `ClientProject`, `Milestone`, `ProjectFile`, `Message`, `Invoice` |
+| `recommender` | no models yet; glue for `ml/adyra_ml` |
+
+Rules the models enforce:
+
+- **Ownership.** Every client model has `Model.objects.for_user(user)`. API views must start from it. Clients see only their own rows, never draft invoices; staff see all; anonymous and inactive users see nothing.
+- **No cascading deletes into money.** `ClientProject` and `Invoice` are `PROTECT`ed. Deleting a user with projects or invoices is refused, not cascaded.
+- **IPs.** Only an HMAC-SHA256 keyed with `SECRET_KEY` is stored (`apps.core.security.hash_ip`), never the raw address.
+- **Uploads.** Content type is detected from magic bytes (never trusted from the client), the extension must match, size is capped (images 5 MB, PDFs 10 MB, client files 25 MB), and files are stored as `<uuid>.<ext>`. SVG and HTML are always rejected. Client files and invoices go to `PRIVATE_MEDIA_ROOT` (outside the web root), and their storage refuses to produce URLs.
+- **Rich text** (blog bodies) is sanitised with nh3 on every save. Messages and case-study text are plain text.
+
 ## How auth and CSRF work
 
 - Django session cookie: HttpOnly, Secure, SameSite=Lax. No JWT, nothing in localStorage (ESLint blocks `localStorage`).
@@ -128,6 +149,10 @@ Production refuses to boot (`ImproperlyConfigured`) if any of these is missing o
 - `/healthz/` is exempt from the HTTPS redirect for platform health checks.
 
 ## Known follow-ups
+
+- **Private file downloads.** `ProjectFile` and `Invoice.pdf` have no URL yet. The API phase adds an ownership-checked view issuing short-lived signed URLs. Production storage (private S3 bucket or Cloudinary authenticated assets) is still to be chosen.
+- **Deleting a `ProjectFile` row leaves the stored file on disk.** Whether deletion should also erase the file, or keep it for records, is a data-retention decision for you.
+- **Budget bands** in `leads.BudgetRange` are placeholders. Adjust them to your real pricing.
 
 - **CSP on the frontend** allows `'unsafe-inline'` scripts, because Next's hydration scripts are inline. The strict alternative is a per-request nonce via middleware, which makes every page dynamic (no static/CDN caching). This is a performance-versus-security decision still to make.
 - **Client IP behind a proxy.** django-axes uses `REMOTE_ADDR`, which on Render is the proxy. Before going live, configure trusted-proxy IP extraction, so lockouts are per client and not per proxy.

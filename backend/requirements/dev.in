@@ -1,0 +1,10 @@
+# Dev / CI tooling, constrained to the runtime pins. Compile with:
+#   pip-compile --generate-hashes --strip-extras -o dev.txt dev.in
+-c base.txt
+-r base.in
+pytest
+pytest-django
+ruff
+black
+pip-audit
+pip-tools

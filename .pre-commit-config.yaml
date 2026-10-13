@@ -1,0 +1,46 @@
+# Install once:  pip install pre-commit && pre-commit install
+repos:
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.30.1
+    hooks:
+      - id: gitleaks
+
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: check-added-large-files
+        args: ["--maxkb=500"]
+      - id: detect-private-key
+      - id: check-merge-conflict
+      - id: check-yaml
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.17.0
+    hooks:
+      - id: ruff-check
+        args: ["--config", "backend/pyproject.toml"]
+        files: ^(backend|ml)/
+
+  - repo: https://github.com/psf/black-pre-commit-mirror
+    rev: 26.10.1
+    hooks:
+      - id: black
+        args: ["--config", "backend/pyproject.toml"]
+        files: ^(backend|ml)/
+
+  - repo: local
+    hooks:
+      - id: eslint
+        name: eslint (frontend)
+        entry: npm --prefix frontend run lint
+        language: system
+        files: ^frontend/.*\.(ts|tsx|js|mjs)$
+        pass_filenames: false
+      - id: prettier
+        name: prettier (frontend)
+        entry: npm --prefix frontend run format:check
+        language: system
+        files: ^frontend/
+        pass_filenames: false

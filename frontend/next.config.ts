@@ -1,37 +1,50 @@
 import type { NextConfig } from "next";
 
 const isDev = process.env.NODE_ENV === "development";
+const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1"]);
 
-function apiOrigin(): string {
-  const raw = process.env.NEXT_PUBLIC_API_URL;
+function originOf(raw: string | undefined, name: string, fallback: string): URL {
   if (!raw) {
-    if (isDev) return "http://localhost:8000";
-    throw new Error("NEXT_PUBLIC_API_URL must be set for production builds.");
+    if (isDev || process.env.NEXT_BUILD_WITHOUT_API === "1") return new URL(fallback);
+    throw new Error(`${name} must be set for production builds.`);
   }
   const url = new URL(raw);
-  if (!isDev && url.protocol !== "https:") {
-    throw new Error("NEXT_PUBLIC_API_URL must use https:// outside development.");
+  // Plain http is only acceptable for a local API (e.g. a local production test).
+  if (url.protocol !== "https:" && !LOCAL_HOSTS.has(url.hostname)) {
+    throw new Error(`${name} must use https:// (got ${url.origin}).`);
   }
-  return url.origin;
+  return url;
 }
 
-// Only the origins the site actually uses. Fonts are self-hosted by next/font,
-// so no Google domains are needed. 'unsafe-inline' for scripts is required by
-// Next's inline hydration scripts unless every page is rendered dynamically
-// with a per-request nonce (see README, "CSP").
+const api = originOf(
+  process.env.NEXT_PUBLIC_API_URL,
+  "NEXT_PUBLIC_API_URL",
+  "http://localhost:8000",
+);
+// Public media (project covers/gallery): Cloudinary/S3 in production, the API in dev.
+const media = process.env.NEXT_PUBLIC_MEDIA_URL
+  ? originOf(process.env.NEXT_PUBLIC_MEDIA_URL, "NEXT_PUBLIC_MEDIA_URL", api.origin)
+  : api;
+const TURNSTILE = "https://challenges.cloudflare.com";
+const secureOnly = api.protocol === "https:";
+
+// Only the origins the site actually uses. Fonts are self-hosted by next/font.
+// 'unsafe-inline' for scripts is required by Next's inline hydration scripts
+// unless every page is rendered dynamically with a nonce (README, "CSP").
 const csp = [
   "default-src 'self'",
-  `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""}`,
+  `script-src 'self' 'unsafe-inline' ${TURNSTILE}${isDev ? " 'unsafe-eval'" : ""}`,
   "style-src 'self' 'unsafe-inline'",
-  "img-src 'self' data: blob:",
+  `img-src 'self' data: blob: ${api.origin} ${media.origin}`,
   "font-src 'self'",
-  `connect-src 'self' ${apiOrigin()}${isDev ? " ws://localhost:3000" : ""}`,
+  `connect-src 'self' ${api.origin} ${TURNSTILE}${isDev ? " ws://localhost:3000" : ""}`,
+  `frame-src ${TURNSTILE}`,
   "worker-src 'self' blob:",
   "object-src 'none'",
   "base-uri 'self'",
   "form-action 'self'",
   "frame-ancestors 'none'",
-  ...(isDev ? [] : ["upgrade-insecure-requests"]),
+  ...(secureOnly && !isDev ? ["upgrade-insecure-requests"] : []),
 ].join("; ");
 
 const securityHeaders = [
@@ -48,10 +61,18 @@ const securityHeaders = [
   },
 ];
 
+const remote = (u: URL) => ({
+  protocol: u.protocol.replace(":", "") as "http" | "https",
+  hostname: u.hostname,
+  ...(u.port ? { port: u.port } : {}),
+  pathname: "/**",
+});
+
 const nextConfig: NextConfig = {
   poweredByHeader: false,
   productionBrowserSourceMaps: false,
   reactStrictMode: true,
+  images: { remotePatterns: [remote(api), remote(media)], formats: ["image/avif", "image/webp"] },
   // Linting runs as its own CI step with the project's flat config.
   eslint: { ignoreDuringBuilds: true },
   async headers() {

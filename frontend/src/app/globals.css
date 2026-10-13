@@ -30,12 +30,26 @@ html {
   color: var(--brand-text);
 }
 
-body {
-  font-family: var(--font-sans), system-ui, sans-serif;
+/* "₹" isn't in Inter's latin subset; serving just that glyph from a system font
+   avoids downloading Inter's 84 KB latin-ext file on pages showing INR prices. */
+@font-face {
+  font-family: "Rupee Local";
+  src:
+    local("Segoe UI"), local("Roboto"), local("Noto Sans"), local("Helvetica Neue"), local("Arial");
+  unicode-range: U+20B9;
 }
 
-a {
-  color: var(--brand-accent);
+body {
+  font-family: "Rupee Local", var(--font-sans), system-ui, sans-serif;
+}
+
+@layer base {
+  a {
+    color: var(--brand-accent);
+    text-decoration: underline;
+    text-decoration-thickness: 1px;
+    text-underline-offset: 3px;
+  }
 }
 
 :focus-visible {
@@ -52,4 +66,55 @@ a {
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
   }
+}
+
+/* --- Buttons: gold is an accent (outline), filled only on the primary CTA --- */
+/* In @layer components so Tailwind utilities (hidden, md:inline-flex) override them. */
+@layer components {
+  .btn-gold,
+  .btn-ghost {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4rem;
+    border-radius: 0.5rem;
+    padding: 0.7rem 1.2rem;
+    font-weight: 600;
+    text-decoration: none;
+    transition:
+      background-color 0.2s,
+      color 0.2s,
+      border-color 0.2s;
+  }
+  .btn-gold {
+    background: var(--brand-gold);
+    color: var(--brand-base);
+    border: 1px solid var(--brand-gold);
+  }
+  .btn-gold:hover {
+    background: var(--brand-gold-warm);
+    border-color: var(--brand-gold-warm);
+  }
+  .btn-ghost {
+    border: 1px solid color-mix(in srgb, var(--brand-text) 25%, transparent);
+    color: var(--brand-text);
+  }
+  .btn-ghost:hover {
+    border-color: var(--brand-gold);
+  }
+  .btn-ghost:disabled {
+    opacity: 0.4;
+  }
+}
+
+/* --- Lenis smooth scroll --- */
+html.lenis,
+html.lenis body {
+  height: auto;
+}
+.lenis.lenis-smooth {
+  scroll-behavior: auto !important;
+}
+.lenis.lenis-stopped {
+  overflow: hidden;
 }

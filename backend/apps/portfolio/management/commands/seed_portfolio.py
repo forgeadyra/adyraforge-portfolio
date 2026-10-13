@@ -110,14 +110,15 @@ PROJECTS: list[dict[str, Any]] = [
         "industry": "Healthcare / hospital",
         "status": Project.Status.LIVE,
         "live_url": "https://multimedicareplus.netlify.app/",
-        "summary": "Website for a multi-specialty hospital, with online appointment booking.",
+        "summary": "Hospital website concept with a 4-step booking flow (front-end prototype)",
         "solution": (
-            "A website for a premier multi-specialty hospital presenting its care and "
-            "technology, with online appointment booking."
+            "A front-end prototype of a multi-specialty hospital website: department "
+            "pages and a 4-step appointment booking flow. Not built for a real hospital."
         ),
         "technologies": ["netlify"],
         "services": ["websites"],
-        "is_featured": True,
+        # Concept work is never featured alongside client work.
+        "is_featured": False,
         "published": True,
         "order": 2,
     },

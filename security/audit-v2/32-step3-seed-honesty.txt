@@ -1,0 +1,64 @@
+Item 3: seed honesty. Dev database, before and after migration portfolio.0005.
+-- before:
+28 objects imported automatically (use -v 2 for details).
+
+   medicare-plus                kind=concept  featured=True  summary='Website for a multi-specialty hospital, with online appointment booking.'
+   mentality-landing-page       kind=concept  featured=False summary=''
+$ python manage.py makemigrations clients   (storage became a per-environment callable)
+Migrations for 'clients':
+  apps/clients/migrations/0002_alter_invoice_pdf_alter_projectfile_file.py
+    ~ Alter field pdf on invoice
+    ~ Alter field file on projectfile
+$ python manage.py migrate
+Running migrations:
+  Applying clients.0002_alter_invoice_pdf_alter_projectfile_file... OK
+  Applying portfolio.0005_concept_projects_honesty... OK
+-- after:
+28 objects imported automatically (use -v 2 for details).
+
+   medicare-plus                kind=concept  featured=False summary='Hospital website concept with a 4-step booking flow (front-end prototype)'
+   mentality-landing-page       kind=concept  featured=False summary=''
+$ pytest -v tests/test_seed.py tests/test_public_api.py tests/test_portfolio_models.py
+tests/test_seed.py::test_seed_loads_real_projects PASSED                 [  2%]
+tests/test_seed.py::test_seed_is_idempotent_and_keeps_admin_edits PASSED [  4%]
+tests/test_seed.py::test_seed_force_resets_seeded_fields PASSED          [  7%]
+tests/test_seed.py::test_concepts_are_labelled_and_never_featured PASSED [  9%]
+tests/test_public_api.py::test_only_published_projects_are_listed PASSED [ 11%]
+tests/test_public_api.py::test_project_filters PASSED                    [ 14%]
+tests/test_public_api.py::test_case_study_detail_has_similar_projects_that_really_overlap PASSED [ 16%]
+tests/test_public_api.py::test_kind_is_exposed_and_only_latelier_is_a_client PASSED [ 19%]
+tests/test_public_api.py::test_proof_bar_stats_endpoint_is_gone PASSED   [ 21%]
+tests/test_public_api.py::test_lighthouse_is_null_until_complete_then_exposed PASSED [ 23%]
+tests/test_public_api.py::test_results_note_is_in_case_study_detail PASSED [ 26%]
+tests/test_public_api.py::test_services_have_no_invented_prices PASSED   [ 28%]
+tests/test_public_api.py::test_testimonials_are_empty_until_real_ones_are_published PASSED [ 30%]
+tests/test_public_api.py::test_technologies_only_lists_ones_in_use PASSED [ 33%]
+tests/test_public_api.py::test_public_endpoints_ignore_sessions_and_are_read_only PASSED [ 35%]
+tests/test_public_api.py::test_planner_returns_recommended_services PASSED [ 38%]
+tests/test_portfolio_models.py::test_published_and_featured_querysets PASSED [ 40%]
+tests/test_portfolio_models.py::test_slug_is_unique PASSED               [ 42%]
+tests/test_portfolio_models.py::test_project_m2m_relations PASSED        [ 45%]
+tests/test_portfolio_models.py::test_testimonial_rating_constraint PASSED [ 47%]
+tests/test_portfolio_models.py::test_blog_body_is_sanitized_on_save_and_published_at_set PASSED [ 50%]
+tests/test_portfolio_models.py::test_live_project_requires_https_live_url PASSED [ 52%]
+tests/test_portfolio_models.py::test_result_metrics_shape_is_validated[metrics0] PASSED [ 54%]
+tests/test_portfolio_models.py::test_result_metrics_shape_is_validated[metrics1] PASSED [ 57%]
+tests/test_portfolio_models.py::test_result_metrics_shape_is_validated[metrics2] PASSED [ 59%]
+tests/test_portfolio_models.py::test_result_metrics_shape_is_validated[metrics3] PASSED [ 61%]
+tests/test_portfolio_models.py::test_result_metrics_shape_is_validated[metrics4] PASSED [ 64%]
+tests/test_portfolio_models.py::test_result_metrics_shape_is_validated[metrics5] PASSED [ 66%]
+tests/test_portfolio_models.py::test_valid_result_metrics_pass PASSED    [ 69%]
+tests/test_portfolio_models.py::test_cover_image_needs_alt_text PASSED   [ 71%]
+tests/test_portfolio_models.py::test_gallery_image_alt_text_is_required PASSED [ 73%]
+tests/test_portfolio_models.py::test_rich_text_is_sanitized[<p>hi</p><script>alert(1)</script>-<script] PASSED [ 76%]
+tests/test_portfolio_models.py::test_rich_text_is_sanitized[<img src="https://x/y.png" onerror="alert(1)">-onerror] PASSED [ 78%]
+tests/test_portfolio_models.py::test_rich_text_is_sanitized[<a href="javascript:alert(1)">x</a>-javascript:] PASSED [ 80%]
+tests/test_portfolio_models.py::test_rich_text_is_sanitized[<iframe src='https://evil'></iframe>-<iframe] PASSED [ 83%]
+tests/test_portfolio_models.py::test_rich_text_is_sanitized[<p style="background:url(x)">x</p>-style=] PASSED [ 85%]
+tests/test_portfolio_models.py::test_safe_links_keep_href_and_get_rel PASSED [ 88%]
+tests/test_portfolio_models.py::test_concept_projects_cannot_name_a_client PASSED [ 90%]
+tests/test_portfolio_models.py::test_new_projects_default_to_concept_never_overclaiming PASSED [ 92%]
+tests/test_portfolio_models.py::test_lighthouse_scores_must_be_complete_dated_and_tied_to_a_live_url PASSED [ 95%]
+tests/test_portfolio_models.py::test_lighthouse_scores_are_capped_at_100 PASSED [ 97%]
+tests/test_portfolio_models.py::test_results_note_length_is_capped PASSED [100%]
+============================= 42 passed in 17.31s ==============================

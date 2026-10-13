@@ -49,3 +49,16 @@ def test_seed_force_resets_seeded_fields() -> None:
     Project.objects.filter(slug="medicare-plus").update(summary="Edited in admin")
     call_command("seed_portfolio", force=True)
     assert Project.objects.get(slug="medicare-plus").summary != "Edited in admin"
+
+
+@pytest.mark.django_db
+def test_concepts_are_labelled_and_never_featured() -> None:
+    call_command("seed_portfolio", verbosity=0)
+    medicare = Project.objects.get(slug="medicare-plus")
+    mentality = Project.objects.get(slug="mentality-landing-page")
+    assert medicare.kind == mentality.kind == Project.Kind.CONCEPT
+    assert not medicare.is_featured and not mentality.is_featured
+    assert medicare.summary == (
+        "Hospital website concept with a 4-step booking flow (front-end prototype)"
+    )
+    assert not Project.objects.filter(kind=Project.Kind.CONCEPT, is_featured=True).exists()

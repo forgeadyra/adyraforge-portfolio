@@ -30,9 +30,9 @@ def test_project_filters(seeded) -> None:
     }
     by_industry = get("projects/", industry="healthcare / hospital").json()
     assert [p["slug"] for p in by_industry] == ["medicare-plus"]
+    # Only client work is featured; concepts (MediCare Plus) are listed, never featured.
     assert {p["slug"] for p in get("projects/", featured="1").json()} == {
         "latelier-de-gastronomie",
-        "medicare-plus",
     }
 
 

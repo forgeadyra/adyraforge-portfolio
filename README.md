@@ -121,6 +121,33 @@ Production refuses to boot (`ImproperlyConfigured`) if any of these is missing o
 
 **Frontend.** `NEXT_PUBLIC_API_URL` must be `https://` for production builds; the build fails otherwise. Never put a secret in a `NEXT_PUBLIC_*` variable.
 
+## Public site
+
+Pages: Home, Work (`/work`, filter by industry and technology), case studies (`/work/[slug]`), Services, Project planner, About, Contact, and a 404. Content comes from the read-only `GET /api/public/*` endpoints with ISR (`revalidate` 1h). If a background revalidation fails, the last good page keeps being served.
+
+- **No invented content.** The proof bar shows real counts. The reply-time promise appears only when `RESPONSE_TIME_HOURS` is set. Service prices appear only once entered in the admin. Testimonials stay hidden until real ones are published. Case-study sections without content aren't rendered.
+- **3D hero** (React Three Fiber, faceted AF monogram, bloom, gold rim light) loads only on desktop-class devices (fine pointer, ≥1024px, not low-memory or Save-Data, WebGL2), after `load` plus idle. It pauses when off-screen or the tab is hidden. Phones, reduced-motion and no-WebGL get the SVG poster (`HeroPoster`, same silhouette).
+- **Motion:** Lenis, GSAP ScrollTrigger reveals and the process timeline, and Framer Motion page transitions all load after `load` plus idle. Framer never loads on the first page view. Everything is off under `prefers-reduced-motion`.
+- **SEO:** per-page metadata and canonicals, generated Open Graph images (site and each case study), JSON-LD (Organization, Person, CreativeWork with `<` escaped), `sitemap.xml`, and `robots.txt` (portal and token pages disallowed).
+
+### Lighthouse (production build, Lighthouse 12.8.2)
+
+Mobile (default: simulated slow 4G, 4× CPU), median of runs:
+
+| Page | Perf | A11y | BP | SEO | LCP | CLS | TBT | JS before load |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Home | 98 | 100 | 100 | 100 | 2.3 s | 0.001 | 70 ms | 127 KB |
+| Work | 97 | 100 | 100 | 100 | 2.3 s | 0 | 110 ms | 125 KB |
+| Case study | 98 | 100 | 100 | 100 | 2.3 s | 0 | 60 ms | 124 KB |
+| Services | 98 | 100 | 100 | 100 | 2.1 s | 0.001 | 70 ms | 117 KB |
+| Contact | 98 | 100 | 100 | 100 | 2.3 s | 0 | 70 ms | 120 KB |
+| Planner | 98 | 100 | 100 | 100 | 2.3 s | 0 | 70 ms | 134 KB |
+| About | 99 | 100 | 100 | 100 | 2.1 s | 0.002 | 50 ms | 116 KB |
+
+Desktop home, with the 3D scene loaded: Perf 94, LCP 0.5 s, CLS 0, TBT 200 ms. The 3D adds about 450 KB of JS after load, and one ~230 ms main-thread task when the scene initialises.
+
+To reproduce: `npm run build` with `NEXT_PUBLIC_API_URL`, `API_INTERNAL_URL` and `NEXT_PUBLIC_SITE_URL` set, run `npx next start -p 3001` with the same variables, then `npx lighthouse@12.8.2 http://localhost:3001/`.
+
 ## Data model
 
 | App | Models |
@@ -176,7 +203,8 @@ Sessions: login rotates the session key and CSRF token, and sessions last at mos
 
 ## Known follow-ups
 
-- **Turnstile widget on the frontend.** The API verifies tokens, but the contact and planner pages aren't built yet. When they are, the CSP must allow `https://challenges.cloudflare.com` (script and frame).
+- **Content to fill in (admin):** service "starting from" prices (INR and USD), `RESPONSE_TIME_HOURS`, case-study problem text, result metrics, screenshots and cover images, testimonials, and the mėntality copy (it stays unpublished until then).
+- **3D init on desktop** is one ~230 ms task about a second after load. If real-user INP data shows clicks landing in it, load the scene on first pointer movement instead of on idle.
 - **Admin dashboard frontend.** The OTP-gated `/api/admin/*` endpoints exist; the custom dashboard UI doesn't yet. The Django admin works today.
 - **Revoked sessions linger as rows** until they expire (they can no longer authenticate). Schedule `manage.py clearsessions` daily in production.
 

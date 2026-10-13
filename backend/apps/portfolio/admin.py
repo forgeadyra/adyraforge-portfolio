@@ -7,7 +7,7 @@ from .models import BlogPost, Project, ProjectImage, Service, Technology, Testim
 
 @admin.register(Service)
 class ServiceAdmin(AuditedModelAdmin):
-    list_display = ("name", "published", "order", "updated_at")
+    list_display = ("name", "price_from_inr", "price_from_usd", "published", "order")
     list_filter = ("published",)
     list_editable = ("order",)
     search_fields = ("name", "summary")

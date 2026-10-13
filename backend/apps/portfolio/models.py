@@ -3,7 +3,7 @@ from typing import Any
 import nh3
 from django.conf import settings
 from django.core.exceptions import ValidationError
-from django.core.validators import MaxLengthValidator, URLValidator
+from django.core.validators import MaxLengthValidator, MinValueValidator, URLValidator
 from django.db import models
 from django.db.models import Q
 from django.utils import timezone
@@ -47,6 +47,14 @@ def validate_result_metrics(value: Any) -> None:
             )
 
 
+def validate_includes(value: Any) -> None:
+    """["Custom layouts", "SEO foundation", ...]; at most 12 short items."""
+    if not isinstance(value, list) or len(value) > 12:
+        raise ValidationError("Included items must be a list of at most 12 entries.")
+    if not all(isinstance(v, str) and 0 < len(v) <= 80 for v in value):
+        raise ValidationError("Each included item must be 1-80 characters.")
+
+
 class PublishedQuerySet(models.QuerySet):
     def published(self) -> "PublishedQuerySet":
         return self.filter(published=True)
@@ -57,6 +65,14 @@ class Service(TimeStampedModel):
     slug = models.SlugField(max_length=100, unique=True)
     summary = models.CharField(max_length=300)
     description = models.TextField(blank=True)
+    includes = models.JSONField(default=list, blank=True, validators=[validate_includes])
+    # Public "starting from" prices. Left empty, the site shows no price at all.
+    price_from_inr = models.PositiveIntegerField(
+        null=True, blank=True, validators=[MinValueValidator(1)], verbose_name="Starting from (₹)"
+    )
+    price_from_usd = models.PositiveIntegerField(
+        null=True, blank=True, validators=[MinValueValidator(1)], verbose_name="Starting from ($)"
+    )
     order = models.PositiveSmallIntegerField(default=0)
     published = models.BooleanField(default=False)
 

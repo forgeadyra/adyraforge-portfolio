@@ -39,6 +39,11 @@ SERVICES: list[dict[str, Any]] = [
             "Optimized for search accessibility and structural stability: custom "
             "architectural layouts, a robust SEO foundation and integrated responsive designs."
         ),
+        "includes": [
+            "Custom architectural layouts",
+            "Robust SEO foundation",
+            "Integrated responsive designs",
+        ],
         "order": 1,
     },
     {
@@ -50,6 +55,11 @@ SERVICES: list[dict[str, Any]] = [
             "pipeline prospects: high-performance load times, a conversion-optimized flow and "
             "structured calls to action."
         ),
+        "includes": [
+            "High-performance load times",
+            "Conversion-optimized flow",
+            "Structured calls to action",
+        ],
         "order": 2,
     },
     {
@@ -60,6 +70,11 @@ SERVICES: list[dict[str, Any]] = [
             "Designed to run your operations and manage user interactions securely: reactive "
             "state systems, secure API integrations and performance that scales."
         ),
+        "includes": [
+            "Reactive state systems",
+            "Secure API integrations",
+            "Optimized performance scaling",
+        ],
         "order": 3,
     },
 ]

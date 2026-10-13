@@ -3,7 +3,12 @@ from typing import Any
 import nh3
 from django.conf import settings
 from django.core.exceptions import ValidationError
-from django.core.validators import MaxLengthValidator, MinValueValidator, URLValidator
+from django.core.validators import (
+    MaxLengthValidator,
+    MaxValueValidator,
+    MinValueValidator,
+    URLValidator,
+)
 from django.db import models
 from django.db.models import Q
 from django.utils import timezone
@@ -111,13 +116,32 @@ class ProjectQuerySet(PublishedQuerySet):
         return self.filter(is_featured=True)
 
 
+def lighthouse_score() -> models.PositiveSmallIntegerField:
+    return models.PositiveSmallIntegerField(
+        null=True, blank=True, validators=[MaxValueValidator(100)]
+    )
+
+
 class Project(TimeStampedModel):
+    class Kind(models.TextChoices):
+        CLIENT = "client", "Client project"
+        CONCEPT = "concept", "Concept"
+
     class Status(models.TextChoices):
         LIVE = "live", "Live"
-        CONCEPT = "concept", "Concept"
+        NOT_LIVE = "not_live", "Not live"
+
+    LIGHTHOUSE_FIELDS = (
+        "lighthouse_performance",
+        "lighthouse_accessibility",
+        "lighthouse_best_practices",
+        "lighthouse_seo",
+    )
 
     title = models.CharField(max_length=150)
     slug = models.SlugField(max_length=150, unique=True)
+    # Concept = not paid client work. Never counted as a client or an industry served.
+    kind = models.CharField(max_length=10, choices=Kind.choices, default=Kind.CONCEPT)
     summary = models.CharField(max_length=300, blank=True, help_text="One-line card text.")
     client_name = models.CharField(max_length=150, blank=True)
     industry = models.CharField(max_length=100, blank=True)
@@ -126,6 +150,18 @@ class Project(TimeStampedModel):
     result_metrics = models.JSONField(
         default=list, blank=True, validators=[validate_result_metrics]
     )
+    results_note = models.TextField(
+        blank=True,
+        validators=[MaxLengthValidator(1000)],
+        help_text="Honest context or limitations for the results (shown on the case study).",
+    )
+    # Real Lighthouse mobile scores of the live site, entered by hand. Shown only
+    # when all four scores and the measurement date are present.
+    lighthouse_performance = lighthouse_score()
+    lighthouse_accessibility = lighthouse_score()
+    lighthouse_best_practices = lighthouse_score()
+    lighthouse_seo = lighthouse_score()
+    lighthouse_measured_on = models.DateField(null=True, blank=True)
     technologies = models.ManyToManyField(Technology, blank=True, related_name="projects")
     services = models.ManyToManyField(Service, blank=True, related_name="projects")
     live_url = models.URLField(blank=True, validators=[https_url])
@@ -134,7 +170,7 @@ class Project(TimeStampedModel):
         upload_to=UUIDUploadTo("projects/covers"), blank=True, validators=[image_validator]
     )
     cover_alt = models.CharField(max_length=200, blank=True)
-    status = models.CharField(max_length=10, choices=Status.choices, default=Status.CONCEPT)
+    status = models.CharField(max_length=10, choices=Status.choices, default=Status.NOT_LIVE)
     is_featured = models.BooleanField(default=False)
     published = models.BooleanField(default=False)
     order = models.PositiveSmallIntegerField(default=0)
@@ -155,8 +191,25 @@ class Project(TimeStampedModel):
             errors["live_url"] = "A live project needs its live URL."
         if self.cover_image and not self.cover_alt.strip():
             errors["cover_alt"] = "Describe the cover image (alt text) for screen readers."
+        if self.kind == self.Kind.CONCEPT and self.client_name.strip():
+            errors["client_name"] = "Concept projects have no client; leave this empty."
+        scores = [getattr(self, f) for f in self.LIGHTHOUSE_FIELDS]
+        if any(s is not None for s in scores) or self.lighthouse_measured_on:
+            if any(s is None for s in scores) or not self.lighthouse_measured_on:
+                errors["lighthouse_measured_on"] = (
+                    "Enter all four Lighthouse scores and the date they were measured."
+                )
+            if not self.live_url:
+                errors["live_url"] = "Lighthouse scores need the live URL they were measured on."
         if errors:
             raise ValidationError(errors)
+
+    @property
+    def lighthouse(self) -> dict[str, Any] | None:
+        scores = {f.removeprefix("lighthouse_"): getattr(self, f) for f in self.LIGHTHOUSE_FIELDS}
+        if any(v is None for v in scores.values()) or not self.lighthouse_measured_on:
+            return None
+        return {**scores, "measured_on": self.lighthouse_measured_on}
 
 
 class ProjectImage(models.Model):

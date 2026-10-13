@@ -30,8 +30,8 @@ class ProjectImageInline(admin.TabularInline):
 
 @admin.register(Project)
 class ProjectAdmin(AuditedModelAdmin):
-    list_display = ("title", "status", "industry", "published", "is_featured", "order")
-    list_filter = ("status", "published", "is_featured", "technologies", "services")
+    list_display = ("title", "kind", "status", "industry", "published", "is_featured", "order")
+    list_filter = ("kind", "status", "published", "is_featured", "technologies", "services")
     list_editable = ("order",)
     search_fields = ("title", "client_name", "industry", "summary")
     prepopulated_fields = {"slug": ("title",)}
@@ -40,10 +40,34 @@ class ProjectAdmin(AuditedModelAdmin):
     fieldsets = (
         (
             None,
-            {"fields": ("title", "slug", "summary", "status", "published", "is_featured", "order")},
+            {
+                "fields": (
+                    "title",
+                    "slug",
+                    "summary",
+                    "kind",
+                    "status",
+                    "published",
+                    "is_featured",
+                    "order",
+                )
+            },
         ),
         ("Client", {"fields": ("client_name", "industry")}),
-        ("Case study", {"fields": ("problem", "solution", "result_metrics")}),
+        ("Case study", {"fields": ("problem", "solution", "result_metrics", "results_note")}),
+        (
+            "Lighthouse (mobile, measured on the live site)",
+            {
+                "description": "Shown on the site only when all four scores and the date are set.",
+                "fields": (
+                    "lighthouse_performance",
+                    "lighthouse_accessibility",
+                    "lighthouse_best_practices",
+                    "lighthouse_seo",
+                    "lighthouse_measured_on",
+                ),
+            },
+        ),
         ("Stack & links", {"fields": ("technologies", "services", "live_url", "repo_url")}),
         ("Cover", {"fields": ("cover_image", "cover_alt")}),
         ("Audit", {"fields": ("created_at", "updated_at")}),

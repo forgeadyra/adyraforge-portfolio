@@ -245,8 +245,6 @@ SERVER_EMAIL = DEFAULT_FROM_EMAIL
 EMAIL_SEND_ASYNC = env.bool("EMAIL_SEND_ASYNC", default=True)
 # Read raw (may start with "$"). Cloudflare's public test keys work in development.
 TURNSTILE_SECRET_KEY = os.environ.get("TURNSTILE_SECRET_KEY", "")
-# Public reply-time promise for the proof bar. Unset = not shown.
-RESPONSE_TIME_HOURS = env.int("RESPONSE_TIME_HOURS", default=None)
 
 # --- i18n / static ------------------------------------------------------------
 LANGUAGE_CODE = "en-us"

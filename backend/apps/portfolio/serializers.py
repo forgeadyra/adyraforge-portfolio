@@ -49,6 +49,7 @@ class ProjectCardSerializer(serializers.ModelSerializer):
             "title",
             "summary",
             "industry",
+            "kind",
             "status",
             "is_featured",
             "live_url",
@@ -56,8 +57,15 @@ class ProjectCardSerializer(serializers.ModelSerializer):
             "cover_alt",
             "technologies",
             "services",
+            "lighthouse",
             "updated_at",
         )
+
+    lighthouse = serializers.SerializerMethodField()
+
+    def get_lighthouse(self, obj: Project) -> dict[str, Any] | None:
+        data = obj.lighthouse
+        return {**data, "measured_on": data["measured_on"].isoformat()} if data else None
 
     def get_cover_image(self, obj: Project) -> str | None:
         return file_url(obj.cover_image)
@@ -85,6 +93,7 @@ class ProjectDetailSerializer(ProjectCardSerializer):
             "problem",
             "solution",
             "result_metrics",
+            "results_note",
             "repo_url",
             "gallery",
             "similar",

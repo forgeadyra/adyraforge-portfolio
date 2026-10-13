@@ -20,7 +20,6 @@ from apps.leads.views import ContactView, PlannerView
 from apps.portfolio.api import (
     PublicProjectViewSet,
     PublicServiceViewSet,
-    PublicStatsView,
     PublicTechnologyList,
     PublicTestimonialList,
 )
@@ -70,7 +69,6 @@ urlpatterns = [
     path("api/public/", include(public.urls)),
     path("api/public/technologies/", PublicTechnologyList.as_view(), name="public-technologies"),
     path("api/public/testimonials/", PublicTestimonialList.as_view(), name="public-testimonials"),
-    path("api/public/stats/", PublicStatsView.as_view(), name="public-stats"),
 ]
 
 if settings.DEBUG:

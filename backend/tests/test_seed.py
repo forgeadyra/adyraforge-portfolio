@@ -17,10 +17,16 @@ def test_seed_loads_real_projects() -> None:
     }
     assert projects["medicare-plus"].live_url == "https://multimedicareplus.netlify.app/"
     assert projects["mentality-landing-page"].live_url == "https://forgementality.netlify.app/"
-    assert {p.slug for p in Project.objects.filter(status="concept")} == {
+    # Only L'Atelier is client work; everything else is a concept.
+    assert {p.slug for p in Project.objects.filter(kind="client")} == {"latelier-de-gastronomie"}
+    # L'Atelier's old URL is a Netlify 404, so it isn't advertised as live.
+    assert {p.slug for p in Project.objects.filter(status="not_live")} == {
+        "latelier-de-gastronomie",
         "nexus-operations-dashboard",
         "aether-product-launch",
     }
+    assert projects["latelier-de-gastronomie"].live_url == ""
+    assert all(not p.client_name for p in projects.values() if p.kind == "concept")
     for p in projects.values():
         p.full_clean()
         assert p.result_metrics == [], "metrics must come from the owner, never be invented"

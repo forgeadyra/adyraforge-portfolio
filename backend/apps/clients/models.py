@@ -1,7 +1,14 @@
 """Client portal data. Every queryset here is scoped with ``for_user()``.
 
-API views must build their querysets from ``Model.objects.for_user(request.user)``
-so a client can only ever reach rows they own (CLAUDE.md rule 6). Deletion is
+Two scopes (CLAUDE.md rule 6):
+
+- ``owned_by(user)``: strictly the user's own rows, no staff bypass. Every
+  client-portal view uses this, so a staff account without OTP can't read
+  other clients' data through the portal.
+- ``for_user(user)``: own rows for clients, everything for staff. Only for the
+  OTP-gated admin API.
+
+Deletion is
 conservative: client projects and invoices are PROTECTed, so removing a user or
 profile can never silently cascade into financial records.
 """
@@ -25,6 +32,11 @@ class OwnedQuerySet(models.QuerySet):
     """Row-level scoping. Subclasses name the lookup path to the owning User."""
 
     owner_lookup: ClassVar[str]
+
+    def owned_by(self, user: Any) -> "OwnedQuerySet":
+        if user is None or not getattr(user, "is_authenticated", False) or not user.is_active:
+            return self.none()
+        return self.filter(**{self.owner_lookup: user})
 
     def for_user(self, user: Any) -> "OwnedQuerySet":
         if user is None or not getattr(user, "is_authenticated", False) or not user.is_active:
@@ -244,6 +256,9 @@ class Invoice(TimeStampedModel):
             # Clients never see drafts.
             return qs if getattr(user, "is_staff", False) else qs.exclude(status="draft")
 
+        def owned_by(self, user: Any) -> "OwnedQuerySet":
+            return super().owned_by(user).exclude(status="draft")
+
     objects = InvoiceQuerySet.as_manager()
 
     class Meta:
@@ -258,3 +273,12 @@ class Invoice(TimeStampedModel):
 
     def __str__(self) -> str:
         return f"{self.number} · {self.amount} {self.currency}"
+
+
+def owner_of(obj: models.Model) -> Any:
+    """The User who owns obj, following its queryset's owner_lookup path."""
+    lookup = type(obj).objects.get_queryset().owner_lookup  # type: ignore[attr-defined]
+    target: Any = obj
+    for attr in lookup.split("__"):
+        target = getattr(target, attr)
+    return target

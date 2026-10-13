@@ -1,5 +1,6 @@
-from django.contrib import admin
+from django.contrib import admin, messages
 
+from apps.accounts.emails import send_invite
 from apps.core.admin import AuditedModelAdmin
 
 from .models import ClientProfile, ClientProject, Invoice, Message, Milestone, ProjectFile
@@ -7,9 +8,31 @@ from .models import ClientProfile, ClientProject, Invoice, Message, Milestone, P
 
 @admin.register(ClientProfile)
 class ClientProfileAdmin(AuditedModelAdmin):
-    list_display = ("user", "company", "phone", "created_at")
+    """Creating a profile for a user without a password emails them a 72h invite."""
+
+    list_display = ("user", "company", "phone", "has_password", "created_at")
     search_fields = ("user__email", "user__full_name", "company")
     autocomplete_fields = ("user",)
+    actions = ["send_invite_email"]
+
+    @admin.display(boolean=True, description="Password set")
+    def has_password(self, obj: ClientProfile) -> bool:
+        return obj.user.has_usable_password()
+
+    def save_model(self, request, obj, form, change):  # type: ignore[no-untyped-def]
+        super().save_model(request, obj, form, change)
+        if not change and not obj.user.has_usable_password():
+            send_invite(obj.user)
+            self.message_user(request, f"Invite emailed to {obj.user.email}.", messages.SUCCESS)
+
+    @admin.action(description="Send invite email (clients without a password)")
+    def send_invite_email(self, request, queryset):  # type: ignore[no-untyped-def]
+        sent = 0
+        for profile in queryset.select_related("user"):
+            if not profile.user.has_usable_password():
+                send_invite(profile.user)
+                sent += 1
+        self.message_user(request, f"Sent {sent} invite(s). Clients with a password were skipped.")
 
 
 class MilestoneInline(admin.TabularInline):

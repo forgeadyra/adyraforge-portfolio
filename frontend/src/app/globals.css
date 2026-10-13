@@ -1,0 +1,55 @@
+@import "tailwindcss";
+
+/* Brand tokens (CLAUDE.md "Design language"). Gold is an accent, not a fill. */
+:root {
+  --brand-base: #0a0a0b;
+  --brand-surface: #141416;
+  --brand-gold: #d4af37;
+  --brand-gold-warm: #f5c66a;
+  --brand-text: #f4f1ea;
+  --brand-muted: #8a8578;
+  --brand-accent: #e8b04b;
+}
+
+/* Expose the tokens as Tailwind utilities: bg-base, text-gold, border-accent, ... */
+@theme inline {
+  --color-base: var(--brand-base);
+  --color-surface: var(--brand-surface);
+  --color-gold: var(--brand-gold);
+  --color-gold-warm: var(--brand-gold-warm);
+  --color-ink: var(--brand-text);
+  --color-muted: var(--brand-muted);
+  --color-accent: var(--brand-accent);
+  --font-display: var(--font-syne);
+  --font-sans: var(--font-inter);
+}
+
+html {
+  color-scheme: dark;
+  background-color: var(--brand-base);
+  color: var(--brand-text);
+}
+
+body {
+  font-family: var(--font-sans), system-ui, sans-serif;
+}
+
+a {
+  color: var(--brand-accent);
+}
+
+:focus-visible {
+  outline: 2px solid var(--brand-accent);
+  outline-offset: 3px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

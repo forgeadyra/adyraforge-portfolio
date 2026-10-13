@@ -11,3 +11,6 @@ django-axes
 django-otp
 whitenoise
 gunicorn
+Pillow
+nh3
+filetype

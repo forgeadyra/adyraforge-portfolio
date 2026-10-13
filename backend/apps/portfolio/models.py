@@ -11,12 +11,17 @@ from django.core.validators import (
 )
 from django.db import models
 from django.db.models import Q
+from django.db.models.signals import pre_save
+from django.dispatch import receiver
 from django.utils import timezone
 
+from apps.core.images import sanitize_new_images, validate_decodable_image
 from apps.core.models import TimeStampedModel
 from apps.core.validators import UUIDUploadTo, image_validator
 
 https_url = URLValidator(schemes=["https"])
+# Public images: allowlisted type + size, and Pillow must be able to decode them.
+PUBLIC_IMAGE_VALIDATORS = [image_validator, validate_decodable_image]
 
 # Rich text allowlist for blog bodies. Everything else (script, style, iframes,
 # event handlers, javascript: URLs) is stripped by nh3.
@@ -167,7 +172,7 @@ class Project(TimeStampedModel):
     live_url = models.URLField(blank=True, validators=[https_url])
     repo_url = models.URLField(blank=True, validators=[https_url])
     cover_image = models.ImageField(
-        upload_to=UUIDUploadTo("projects/covers"), blank=True, validators=[image_validator]
+        upload_to=UUIDUploadTo("projects/covers"), blank=True, validators=PUBLIC_IMAGE_VALIDATORS
     )
     cover_alt = models.CharField(max_length=200, blank=True)
     status = models.CharField(max_length=10, choices=Status.choices, default=Status.NOT_LIVE)
@@ -217,7 +222,7 @@ class ProjectImage(models.Model):
 
     project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name="gallery")
     image = models.ImageField(
-        upload_to=UUIDUploadTo("projects/gallery"), validators=[image_validator]
+        upload_to=UUIDUploadTo("projects/gallery"), validators=PUBLIC_IMAGE_VALIDATORS
     )
     alt_text = models.CharField(max_length=200)
     caption = models.CharField(max_length=200, blank=True)
@@ -240,7 +245,7 @@ class Testimonial(TimeStampedModel):
     )
     rating = models.PositiveSmallIntegerField(null=True, blank=True)
     avatar = models.ImageField(
-        upload_to=UUIDUploadTo("testimonials"), blank=True, validators=[image_validator]
+        upload_to=UUIDUploadTo("testimonials"), blank=True, validators=PUBLIC_IMAGE_VALIDATORS
     )
     published = models.BooleanField(default=False)
     order = models.PositiveSmallIntegerField(default=0)
@@ -266,7 +271,7 @@ class BlogPost(TimeStampedModel):
     excerpt = models.CharField(max_length=300, blank=True)
     body = models.TextField(help_text="HTML. Sanitised on save; scripts and handlers are removed.")
     cover_image = models.ImageField(
-        upload_to=UUIDUploadTo("blog"), blank=True, validators=[image_validator]
+        upload_to=UUIDUploadTo("blog"), blank=True, validators=PUBLIC_IMAGE_VALIDATORS
     )
     cover_alt = models.CharField(max_length=200, blank=True)
     author = models.ForeignKey(
@@ -294,3 +299,21 @@ class BlogPost(TimeStampedModel):
         if self.published and self.published_at is None:
             self.published_at = timezone.now()
         super().save(*args, **kwargs)
+
+
+# Public images are re-encoded from pixels before they're stored: strips EXIF/GPS
+# metadata and anything appended to the file (audit v2, M-2). Runs before the
+# file field writes to storage, so the original bytes never reach public media.
+_PUBLIC_IMAGE_FIELDS = {
+    "Project": ("cover_image",),
+    "ProjectImage": ("image",),
+    "Testimonial": ("avatar",),
+    "BlogPost": ("cover_image",),
+}
+
+
+@receiver(pre_save, dispatch_uid="portfolio.sanitize_public_images")
+def _sanitize_public_images(sender: Any, instance: Any, **kwargs: Any) -> None:
+    fields = _PUBLIC_IMAGE_FIELDS.get(sender.__name__)
+    if fields and sender._meta.app_label == "portfolio":
+        sanitize_new_images(instance, *fields)

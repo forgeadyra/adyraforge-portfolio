@@ -82,3 +82,76 @@ def test_rotating_x_forwarded_for_does_not_reset_the_contact_throttle(proxies, c
                            REMOTE_ADDR="10.0.0.1", HTTP_X_FORWARDED_FOR=xff)  # fmt: skip
         codes.append(resp.status_code)
     assert codes == [201] * 5 + [429]
+
+
+# --- Behind Render (1 trusted proxy): every request arrives from the proxy's address,
+# and the proxy appends the real client to X-Forwarded-For. ----------------------------
+PROXY = "10.0.0.1"
+CLIENT_A = "198.51.100.10"
+CLIENT_B = "203.0.113.20"
+
+
+@pytest.fixture
+def no_login_throttle(monkeypatch):
+    """Isolate axes from the 5/min login throttle, which would also answer 429."""
+    from rest_framework.throttling import SimpleRateThrottle
+
+    rates = {**SimpleRateThrottle.THROTTLE_RATES, "login": "1000/min", "anon": "1000/min"}
+    monkeypatch.setattr(SimpleRateThrottle, "THROTTLE_RATES", rates)
+
+
+def via_proxy(real_ip: str, spoofed: str = "") -> dict:
+    """Request metadata as Django sees it behind Render: client-sent prefix + appended peer."""
+    xff = f"{spoofed}, {real_ip}" if spoofed else real_ip
+    return {"REMOTE_ADDR": PROXY, "HTTP_X_FORWARDED_FOR": xff}
+
+
+@pytest.mark.django_db
+def test_behind_one_proxy_two_real_clients_are_throttled_independently(proxies) -> None:
+    proxies(1)
+    bot = {"name": "n", "email": "n@example.com", "project_type": "other", "message": "m",
+           "website": "http://spam.example", "turnstile_token": "t"}  # fmt: skip
+    a, b = APIClient(), APIClient()
+    codes_a = [a.post("/api/leads/contact/", bot, format="json", **via_proxy(CLIENT_A)).status_code
+               for _ in range(6)]  # fmt: skip
+    assert codes_a == [201] * 5 + [429]
+    # Same proxy address, different real client: its own, untouched bucket.
+    assert (
+        b.post("/api/leads/contact/", bot, format="json", **via_proxy(CLIENT_B)).status_code == 201
+    )
+
+
+@pytest.mark.django_db
+def test_behind_one_proxy_two_real_clients_are_locked_out_independently(
+    proxies, make_user, no_login_throttle
+) -> None:
+    from django.test import Client
+
+    from tests.conftest import api_login
+
+    proxies(1)
+    make_user(email="alice@example.com")
+    attacker = Client()
+    for _ in range(5):
+        api_login(attacker, "alice@example.com", "wrong-password-123", **via_proxy(CLIENT_A))
+    assert api_login(attacker, "alice@example.com", **via_proxy(CLIENT_A)).status_code == 429
+    # Alice herself, from her own network through the same proxy, is not locked out.
+    assert api_login(Client(), "alice@example.com", **via_proxy(CLIENT_B)).status_code == 200
+
+
+@pytest.mark.django_db
+def test_spoofed_leftmost_entry_cannot_escape_the_lockout(
+    proxies, make_user, no_login_throttle
+) -> None:
+    from django.test import Client
+
+    from tests.conftest import api_login
+
+    proxies(1)
+    make_user(email="alice@example.com")
+    attacker = Client()
+    for i in range(5):  # a fresh forged "client IP" on every attempt
+        api_login(attacker, "alice@example.com", "wrong-password-123",
+                  **via_proxy(CLIENT_A, spoofed=f"6.6.6.{i}"))  # fmt: skip
+    locked = api_login(attacker, "alice@example.com", **via_proxy(CLIENT_A, spoofed="7.7.7.7"))
+    assert locked.status_code == 429

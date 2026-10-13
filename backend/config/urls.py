@@ -14,7 +14,7 @@ from apps.clients.views import (
     MessageViewSet,
     ProjectFileViewSet,
 )
-from apps.core.views import CsrfView, HealthView
+from apps.core.views import CsrfView
 from apps.leads.admin_api import AdminLeadViewSet
 from apps.leads.views import ContactView, PlannerView
 from apps.portfolio.api import (
@@ -59,7 +59,7 @@ auth_urls = [
 
 urlpatterns = [
     path(settings.ADMIN_URL, admin.site.urls),
-    path("healthz/", HealthView.as_view(), name="healthz"),
+    # /healthz/ is answered by apps.core.middleware.HealthCheckMiddleware.
     path("api/auth/", include(auth_urls)),
     path("api/portal/", include(portal.urls)),
     path("api/files/<str:token>/", SignedDownloadView.as_view(), name="signed-download"),

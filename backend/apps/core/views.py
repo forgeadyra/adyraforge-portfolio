@@ -8,19 +8,6 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 
-class HealthView(APIView):
-    """Liveness probe for Docker/Render."""
-
-    # Public on purpose: orchestrators call it unauthenticated. It returns no data
-    # and touches no database, so it is safe to leave unthrottled.
-    permission_classes = [AllowAny]
-    authentication_classes: list = []
-    throttle_classes: list = []
-
-    def get(self, request: Request) -> Response:
-        return Response({"status": "ok"})
-
-
 @method_decorator(ensure_csrf_cookie, name="dispatch")
 class CsrfView(APIView):
     """Hands the SPA a CSRF token in the body and sets the (HttpOnly) cookie."""

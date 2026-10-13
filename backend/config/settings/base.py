@@ -62,6 +62,12 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
+    # Header-only middlewares first, so /healthz/ (answered next) still gets them.
+    "django.middleware.clickjacking.XFrameOptionsMiddleware",
+    "csp.middleware.CSPMiddleware",
+    "apps.core.middleware.PermissionsPolicyMiddleware",
+    # Before CommonMiddleware, which validates the Host header on every request.
+    "apps.core.middleware.HealthCheckMiddleware",
     "whitenoise.middleware.WhiteNoiseMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "corsheaders.middleware.CorsMiddleware",
@@ -70,9 +76,6 @@ MIDDLEWARE = [
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django_otp.middleware.OTPMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
-    "django.middleware.clickjacking.XFrameOptionsMiddleware",
-    "csp.middleware.CSPMiddleware",
-    "apps.core.middleware.PermissionsPolicyMiddleware",
     # Must be last so it sees the final authentication outcome.
     "axes.middleware.AxesMiddleware",
 ]

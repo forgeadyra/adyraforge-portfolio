@@ -137,3 +137,14 @@ def test_turnstile_verification_parses_success() -> None:
     sent = opened.call_args.args[0].data.decode()
     assert "secret=" in sent and "remoteip" not in sent  # visitor IP never shared
     assert turnstile.verify_turnstile("") is False
+
+
+@pytest.mark.parametrize(
+    "body", [b"[true]", b'"success"', b"null", b'{"success": "true"}', b"<html>"]
+)
+def test_turnstile_unexpected_responses_fail_closed(body: bytes) -> None:
+    fake = mock.MagicMock()
+    fake.__enter__.return_value = fake
+    fake.read.return_value = body
+    with mock.patch("apps.leads.turnstile.urlopen", return_value=fake):
+        assert turnstile.verify_turnstile("token") is False

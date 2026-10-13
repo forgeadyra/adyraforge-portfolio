@@ -22,7 +22,7 @@ describe("netlify.toml security headers", () => {
   it("match next.config.ts production headers exactly", async () => {
     vi.stubEnv("NODE_ENV", "production");
     vi.stubEnv("NEXT_PUBLIC_API_URL", "https://api.adyraforge.com");
-    vi.stubEnv("NEXT_PUBLIC_MEDIA_URL", "");
+    vi.stubEnv("NEXT_PUBLIC_MEDIA_URL", "https://media.adyraforge.com");
     vi.resetModules();
     const { default: config } = await import("../../next.config");
     expect(config.headers).toBeTypeOf("function");

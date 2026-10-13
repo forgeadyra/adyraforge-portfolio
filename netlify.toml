@@ -6,6 +6,11 @@
   command = "npm run build"
   publish = ".next"
 
+# Netlify's Next.js runtime (SSR, ISR, middleware, image optimisation). Pinned in
+# frontend/package.json devDependencies so builds are reproducible.
+[[plugins]]
+  package = "@netlify/plugin-nextjs"
+
 [build.environment]
   NODE_VERSION = "22"
   NEXT_TELEMETRY_DISABLED = "1"
@@ -13,16 +18,17 @@
   # in the Netlify UI. Nothing secret ever goes in this file or in NEXT_PUBLIC_*.
   NEXT_PUBLIC_API_URL = "https://api.adyraforge.com"
   NEXT_PUBLIC_SITE_URL = "https://adyraforge.com"
+  # Public media bucket's custom domain (Cloudflare R2 / S3); see DEPLOY.md.
+  NEXT_PUBLIC_MEDIA_URL = "https://media.adyraforge.com"
 
 # Same security headers as frontend/next.config.ts (production values), applied by
 # Netlify's edge as well, so static assets and CDN-cached pages carry them too.
 # Keep both in sync: frontend/src/lib/netlify-headers.test.ts fails if they differ.
-# img-src/connect-src list only the API origin. Add the media CDN origin
-# (Cloudinary/S3) once the production storage decision is made.
+# img-src: the API origin plus the public media bucket's custom domain.
 [[headers]]
   for = "/*"
   [headers.values]
-    Content-Security-Policy = "default-src 'self'; script-src 'self' 'unsafe-inline' https://challenges.cloudflare.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://api.adyraforge.com; font-src 'self'; connect-src 'self' https://api.adyraforge.com https://challenges.cloudflare.com; frame-src https://challenges.cloudflare.com; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests"
+    Content-Security-Policy = "default-src 'self'; script-src 'self' 'unsafe-inline' https://challenges.cloudflare.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://api.adyraforge.com https://media.adyraforge.com; font-src 'self'; connect-src 'self' https://api.adyraforge.com https://challenges.cloudflare.com; frame-src https://challenges.cloudflare.com; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests"
     Strict-Transport-Security = "max-age=31536000; includeSubDomains; preload"
     X-Frame-Options = "DENY"
     X-Content-Type-Options = "nosniff"

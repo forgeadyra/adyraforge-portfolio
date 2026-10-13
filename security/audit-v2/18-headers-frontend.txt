@@ -1,0 +1,134 @@
+Frontend production build (next start, port 3001), headers from frontend/next.config.ts.
+
+$ curl -sS -D - -o /dev/null http://localhost:3001/
+HTTP/1.1 200 OK
+Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' https://challenges.cloudflare.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: http://localhost:8000; font-src 'self'; connect-src 'self' http://localhost:8000 https://challenges.cloudflare.com; frame-src https://challenges.cloudflare.com; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'
+Strict-Transport-Security: max-age=31536000; includeSubDomains; preload
+X-Frame-Options: DENY
+X-Content-Type-Options: nosniff
+Referrer-Policy: strict-origin-when-cross-origin
+Cross-Origin-Opener-Policy: same-origin
+Permissions-Policy: accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=(), interest-cohort=()
+Vary: rsc, next-router-state-tree, next-router-prefetch, next-router-segment-prefetch, Accept-Encoding
+x-nextjs-cache: HIT
+x-nextjs-prerender: 1
+x-nextjs-prerender: 1
+x-nextjs-stale-time: 300
+Cache-Control: s-maxage=3600, stale-while-revalidate=31532400
+ETag: "md2vgwvqem17sc"
+Content-Type: text/html; charset=utf-8
+Content-Length: 56796
+Connection: keep-alive
+Keep-Alive: timeout=5
+
+
+$ curl -sS -D - -o /dev/null http://localhost:3001/work/medicare-plus
+HTTP/1.1 200 OK
+Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' https://challenges.cloudflare.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: http://localhost:8000; font-src 'self'; connect-src 'self' http://localhost:8000 https://challenges.cloudflare.com; frame-src https://challenges.cloudflare.com; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'
+Strict-Transport-Security: max-age=31536000; includeSubDomains; preload
+X-Frame-Options: DENY
+X-Content-Type-Options: nosniff
+Referrer-Policy: strict-origin-when-cross-origin
+Cross-Origin-Opener-Policy: same-origin
+Permissions-Policy: accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=(), interest-cohort=()
+Vary: rsc, next-router-state-tree, next-router-prefetch, next-router-segment-prefetch, Accept-Encoding
+x-nextjs-cache: HIT
+x-nextjs-prerender: 1
+x-nextjs-prerender: 1
+x-nextjs-stale-time: 300
+Cache-Control: s-maxage=3600, stale-while-revalidate=31532400
+ETag: "8iyjeh0kmfxrr"
+Content-Type: text/html; charset=utf-8
+Content-Length: 43787
+Connection: keep-alive
+Keep-Alive: timeout=5
+
+
+$ curl -sS -D - -o /dev/null http://localhost:3001/login
+HTTP/1.1 200 OK
+Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' https://challenges.cloudflare.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: http://localhost:8000; font-src 'self'; connect-src 'self' http://localhost:8000 https://challenges.cloudflare.com; frame-src https://challenges.cloudflare.com; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'
+Strict-Transport-Security: max-age=31536000; includeSubDomains; preload
+X-Frame-Options: DENY
+X-Content-Type-Options: nosniff
+Referrer-Policy: strict-origin-when-cross-origin
+Cross-Origin-Opener-Policy: same-origin
+Permissions-Policy: accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=(), interest-cohort=()
+Vary: rsc, next-router-state-tree, next-router-prefetch, next-router-segment-prefetch, Accept-Encoding
+x-nextjs-cache: HIT
+x-nextjs-prerender: 1
+x-nextjs-prerender: 1
+x-nextjs-stale-time: 300
+Cache-Control: s-maxage=31536000
+ETag: "mdynlda71rd6x"
+Content-Type: text/html; charset=utf-8
+Content-Length: 17099
+Connection: keep-alive
+Keep-Alive: timeout=5
+
+
+$ curl -sS -D - -o /dev/null http://localhost:3001/portal
+HTTP/1.1 307 Temporary Redirect
+Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' https://challenges.cloudflare.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: http://localhost:8000; font-src 'self'; connect-src 'self' http://localhost:8000 https://challenges.cloudflare.com; frame-src https://challenges.cloudflare.com; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'
+Strict-Transport-Security: max-age=31536000; includeSubDomains; preload
+X-Frame-Options: DENY
+X-Content-Type-Options: nosniff
+Referrer-Policy: strict-origin-when-cross-origin
+Cross-Origin-Opener-Policy: same-origin
+Permissions-Policy: accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=(), interest-cohort=()
+location: /login?next=%2Fportal
+Connection: keep-alive
+Keep-Alive: timeout=5
+Transfer-Encoding: chunked
+
+
+$ curl -sS -D - -o /dev/null http://localhost:3001/robots.txt
+HTTP/1.1 200 OK
+Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' https://challenges.cloudflare.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: http://localhost:8000; font-src 'self'; connect-src 'self' http://localhost:8000 https://challenges.cloudflare.com; frame-src https://challenges.cloudflare.com; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'
+Strict-Transport-Security: max-age=31536000; includeSubDomains; preload
+X-Frame-Options: DENY
+X-Content-Type-Options: nosniff
+Referrer-Policy: strict-origin-when-cross-origin
+Cross-Origin-Opener-Policy: same-origin
+Permissions-Policy: accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=(), interest-cohort=()
+vary: rsc, next-router-state-tree, next-router-prefetch, next-router-segment-prefetch
+x-nextjs-cache: HIT
+cache-control: public, max-age=0, must-revalidate
+content-type: text/plain
+Connection: keep-alive
+Keep-Alive: timeout=5
+Transfer-Encoding: chunked
+
+
+$ curl -sS -D - -o /dev/null http://localhost:3001/does-not-exist
+HTTP/1.1 404 Not Found
+Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' https://challenges.cloudflare.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: http://localhost:8000; font-src 'self'; connect-src 'self' http://localhost:8000 https://challenges.cloudflare.com; frame-src https://challenges.cloudflare.com; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'
+Strict-Transport-Security: max-age=31536000; includeSubDomains; preload
+X-Frame-Options: DENY
+X-Content-Type-Options: nosniff
+Referrer-Policy: strict-origin-when-cross-origin
+Cross-Origin-Opener-Policy: same-origin
+Permissions-Policy: accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=(), interest-cohort=()
+Cache-Control: private, no-cache, no-store, max-age=0, must-revalidate
+Vary: rsc, next-router-state-tree, next-router-prefetch, next-router-segment-prefetch, Accept-Encoding
+x-nextjs-cache: HIT
+x-nextjs-prerender: 1
+x-nextjs-prerender: 1
+x-nextjs-stale-time: 300
+ETag: "5l4hawfh2nkfl"
+Content-Type: text/html; charset=utf-8
+Content-Length: 26493
+Connection: keep-alive
+Keep-Alive: timeout=5
+
+
+$ curl -sS http://localhost:3001/robots.txt
+User-Agent: *
+Allow: /
+Disallow: /portal
+Disallow: /login
+Disallow: /invite/
+Disallow: /reset-password/
+Disallow: /forgot-password
+
+Host: https://adyraforge.com
+Sitemap: https://adyraforge.com/sitemap.xml

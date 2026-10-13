@@ -1,0 +1,22 @@
+$ python upload_attack.py   (after fix M-2)
+== private client documents (ProjectFile) ==
+[PASS] rejected: PHP script ('shell.php')  ->  200 This file type is not allowed.
+[PASS] rejected: PDF magic but .php extension ('shell.pdf.php')  ->  200 The file extension does not match its contents.
+[PASS] rejected: PHP content named .pdf ('contract.php.pdf')  ->  200 This file type is not allowed.
+[PASS] rejected: SVG with script ('evil.svg')  ->  200 This file type is not allowed.
+[PASS] rejected: HTML renamed .png ('innocent.png')  ->  200 This file type is not allowed.
+[PASS] rejected: GIF/PHP polyglot (GIF not allowed) ('gifar.gif')  ->  200 This file type is not allowed.
+[PASS] rejected: null byte in filename ('note.pdf\x00.php')  ->  200 This file type is not allowed.
+[PASS] rejected: 26 MB (> 25 MB cap) ('huge.pdf')  ->  200 File is too large (max 25 MB).
+[PASS] control: real PDF with traversal filename is accepted (302)  ->  302
+
+== public image (Testimonial.avatar) ==
+[PASS] rejected: SVG avatar  ->  200
+[PASS] rejected: HTML as .png  ->  200
+real PNG + appended PHP/JS polyglot -> 302 (302 = stored)
+stored at: http://localhost:8000/media/testimonials/b59f3d074bb04c1c81abbae3148edb5d.png
+[PASS] stored public image no longer contains the PHP/JS payload  ->  69 bytes, payload present=False
+[PASS] stored file name is a UUID, not the uploaded name  ->  http://localhost:8000/media/testimonials/b59f3d074bb04c1c81abbae3148edb5d.png
+
+0 failure(s)
+exit=0

@@ -1,0 +1,6 @@
+$ pip-audit --strict --cache-dir /tmp/pip-audit-cache -r requirements/base.txt
+No known vulnerabilities found
+exit=0
+$ pip-audit --strict --cache-dir /tmp/pip-audit-cache -r requirements/dev.txt
+No known vulnerabilities found
+exit=0

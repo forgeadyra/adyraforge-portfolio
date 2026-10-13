@@ -1,0 +1,47 @@
+$ python idor_sweep.py
+== list endpoints must not include bob's rows ==
+[PASS] GET /api/portal/projects/ excludes bob #4  ->  200 ids=[3]
+[PASS] GET /api/portal/messages/ excludes bob #5  ->  200 ids=[4]
+[PASS] GET /api/portal/messages/?project=<bob> is empty  ->  200
+[PASS] GET /api/portal/files/ excludes bob #4  ->  200 ids=[3]
+[PASS] GET /api/portal/files/?project=<bob> is empty  ->  200
+[PASS] GET /api/portal/invoices/ excludes bob #4  ->  200 ids=[3]
+[PASS] GET /api/portal/invoices/?project=<bob> is empty  ->  200
+
+== every method on bob's objects must be 404 ==
+[PASS] GET    /api/portal/projects/4/  ->  404
+[PASS] PUT    /api/portal/projects/4/  ->  404
+[PASS] PATCH  /api/portal/projects/4/  ->  404
+[PASS] DELETE /api/portal/projects/4/  ->  404
+[PASS] POST   /api/portal/projects/4/  ->  404
+[PASS] GET    /api/portal/messages/5/  ->  404
+[PASS] PUT    /api/portal/messages/5/  ->  404
+[PASS] PATCH  /api/portal/messages/5/  ->  404
+[PASS] DELETE /api/portal/messages/5/  ->  404
+[PASS] POST   /api/portal/messages/5/  ->  404
+[PASS] GET    /api/portal/files/4/  ->  404
+[PASS] PUT    /api/portal/files/4/  ->  404
+[PASS] PATCH  /api/portal/files/4/  ->  404
+[PASS] DELETE /api/portal/files/4/  ->  404
+[PASS] POST   /api/portal/files/4/  ->  404
+[PASS] GET    /api/portal/invoices/4/  ->  404
+[PASS] PUT    /api/portal/invoices/4/  ->  404
+[PASS] PATCH  /api/portal/invoices/4/  ->  404
+[PASS] DELETE /api/portal/invoices/4/  ->  404
+[PASS] POST   /api/portal/invoices/4/  ->  404
+[PASS] GET    /api/portal/files/4/download/  ->  404
+[PASS] GET    /api/portal/invoices/4/download/  ->  404
+[PASS] GET    /api/portal/projects/4/messages/  ->  404
+[PASS] POST   /api/portal/projects/4/messages/  ->  404
+
+== bob's signed download links are useless to alice ==
+[PASS] bob downloads own file  ->  200
+[PASS] alice replays bob's file link  ->  404
+[PASS] bob downloads own invoice  ->  200
+[PASS] alice replays bob's invoice link  ->  404
+
+== bob's data is unchanged ==
+[PASS] no message injected into bob's thread  ->  ['private note from bob']
+
+0 failure(s)
+exit=0

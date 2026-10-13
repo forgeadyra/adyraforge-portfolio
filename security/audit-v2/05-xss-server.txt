@@ -1,0 +1,26 @@
+$ python xss_check.py
+[PASS] GET / renders  ->  200
+[PASS] frontend /: no unescaped payload
+[PASS] frontend /: JSON-LD has no raw '<'
+[PASS] frontend /: JSON-LD has no raw '<'
+[PASS] GET /work renders  ->  200
+[PASS] frontend /work: no unescaped payload
+[PASS] frontend /work: JSON-LD has no raw '<'
+[PASS] frontend /work: JSON-LD has no raw '<'
+[PASS] GET /work/xss-probe renders  ->  200
+[PASS] frontend /work/xss-probe: no unescaped payload
+[PASS] frontend /work/xss-probe: JSON-LD has no raw '<'
+[PASS] frontend /work/xss-probe: JSON-LD has no raw '<'
+[PASS] frontend /work/xss-probe: JSON-LD has no raw '<'
+[PASS] payload is present but escaped (&lt;script&gt;)
+[PASS] GET /services renders  ->  200
+[PASS] frontend /services: no unescaped payload
+[PASS] frontend /services: JSON-LD has no raw '<'
+[PASS] frontend /services: JSON-LD has no raw '<'
+[PASS] admin login (OTP) for admin render check  ->  302
+[PASS] admin /leads/lead/?q=xss: no unescaped payload
+[PASS] admin /portfolio/testimonial/: no unescaped payload
+[PASS] admin /portfolio/project/?q=xss: no unescaped payload
+
+0 failure(s)
+exit=0

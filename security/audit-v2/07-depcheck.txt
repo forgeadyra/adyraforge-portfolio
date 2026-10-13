@@ -1,0 +1,11 @@
+Unused devDependencies
+* @tailwindcss/postcss
+* @types/react-dom
+* tailwindcss
+exit=127
+
+--- triage (manual) ---
+@tailwindcss/postcss : used by frontend/postcss.config.mjs (plugins: ["@tailwindcss/postcss"]) -> false positive
+tailwindcss          : used by frontend/src/app/globals.css (@import "tailwindcss") -> false positive
+@types/react-dom     : type package Next.js requires for TS builds (react-dom is imported by Next itself) -> false positive
+No dependency removed. No unused runtime "dependencies" reported.

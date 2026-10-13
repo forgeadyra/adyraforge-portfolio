@@ -1,0 +1,10 @@
+[FAIL] contact (5/hour): 6 requests with rotating X-Forwarded-For still hit 429  ->  codes=[201, 201, 201, 201, 201, 201]
+[FAIL] planner (10/hour): 11 requests with rotating X-Forwarded-For still hit 429  ->  codes=[201, 201, 201, 201, 201, 201, 201, 201, 201, 201, 201]
+[FAIL] password reset (3/hour): 4 requests with rotating X-Forwarded-For still hit 429  ->  codes=[202, 202, 202, 202]
+[FAIL] login (5/min): 6 requests with rotating X-Forwarded-For still hit 429  ->  codes=[400, 400, 400, 400, 400, 400]
+
+4 failure(s)
+  - contact (5/hour): 6 requests with rotating X-Forwarded-For still hit 429
+  - planner (10/hour): 11 requests with rotating X-Forwarded-For still hit 429
+  - password reset (3/hour): 4 requests with rotating X-Forwarded-For still hit 429
+  - login (5/min): 6 requests with rotating X-Forwarded-For still hit 429

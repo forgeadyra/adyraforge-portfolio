@@ -1,0 +1,3 @@
+$ python manage.py check --deploy --fail-level WARNING   (production settings, HEAD ab15334)
+System check identified no issues (0 silenced).
+exit=0

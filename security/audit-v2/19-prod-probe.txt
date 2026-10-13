@@ -1,0 +1,86 @@
+$ python prod_probe.py   (af-prod: production settings + gunicorn, TRUSTED_PROXY_COUNT=1; af-prod-nodb: same, database unreachable; ADMIN_URL=<random, redacted>)
+== transport & headers ==
+[PASS] plain http is redirected to https (SECURE_SSL_REDIRECT)  ->  301 https://api.adyraforge.test/api/public/projects/
+GET /api/public/projects/ -> 200
+    Strict-Transport-Security: max-age=31536000; includeSubDomains; preload
+    X-Content-Type-Options: nosniff
+    X-Frame-Options: DENY
+    Referrer-Policy: strict-origin-when-cross-origin
+    Content-Security-Policy: frame-ancestors 'none'; form-action 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; script-src 'self'; default-src 'none'; base-uri 'none'; object-src 'none'; connect-src 'self'
+    Permissions-Policy: accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=(), interest-cohort=()
+    Cross-Origin-Opener-Policy: same-origin
+    Server: gunicorn
+    X-Powered-By: None
+[PASS] HSTS 1 year + includeSubDomains + preload  ->  max-age=31536000; includeSubDomains; preload
+[PASS] X-Frame-Options DENY
+[PASS] nosniff
+[PASS] CSP present with default-src 'none'  ->  frame-ancestors 'none'; form-action 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; script-src 'self'; default-src 'none'; base-uri 'none'; object-src 'none'; connect-src 'self'
+[PASS] Permissions-Policy present
+[PASS] no version in Server header  ->  gunicorn
+
+== DEBUG off, admin path, robots ==
+[PASS] GET /this-does-not-exist/ -> 404  ->  404
+[PASS] GET /this-does-not-exist/: no stack trace / internals in body  ->  404 '{"detail": "Not found."}'
+[PASS] GET /api/nope/ -> 404  ->  404
+[PASS] GET /api/nope/: no stack trace / internals in body  ->  404 '{"detail": "Not found."}'
+[PASS] GET /admin/ -> 404  ->  404
+[PASS] GET /admin/: no stack trace / internals in body  ->  404 '{"detail": "Not found."}'
+[PASS] GET /admin/login/ -> 404  ->  404
+[PASS] GET /admin/login/: no stack trace / internals in body  ->  404 '{"detail": "Not found."}'
+[PASS] GET /robots.txt -> 404  ->  404
+[PASS] GET /robots.txt: no stack trace / internals in body  ->  404 '{"detail": "Not found."}'
+[PASS] admin login lives only at the secret ADMIN_URL (200)  ->  200
+[PASS] unknown Host header -> 400 (ALLOWED_HOSTS)  ->  400
+[PASS] bad Host: no stack trace / internals in body  ->  400 '{"detail": "Bad request."}'
+
+== error handling (malformed input) ==
+[PASS] login with malformed JSON -> 4xx, never 500  ->  400
+[PASS] login with malformed JSON: no stack trace / internals in body  ->  400 '{"detail":"JSON parse error - Expecting value: line 1 column 11 (char 10)"}'
+[PASS] login with JSON array -> 4xx, never 500  ->  400
+[PASS] login with JSON array: no stack trace / internals in body  ->  400 '{"non_field_errors":["Invalid data. Expected a dictionary, but got list."]}'
+[PASS] login with deep JSON -> 4xx, never 500  ->  400
+[PASS] login with deep JSON: no stack trace / internals in body  ->  400 '{"detail":"JSON is nested too deeply."}'
+[PASS] login with invalid UTF-8 -> 4xx, never 500  ->  400
+[PASS] login with invalid UTF-8: no stack trace / internals in body  ->  400 '{"detail":"JSON parse error - \'utf-8\' codec can\'t decode byte 0xff in position 11: invalid'
+[PASS] login with 3 MB body -> 4xx, never 500  ->  400
+[PASS] login with 3 MB body: no stack trace / internals in body  ->  400 '{"detail": "Bad request."}'
+[PASS] form-encoded body to JSON API -> 415  ->  415
+
+== forced 500 (database unreachable) ==
+[PASS] NODB GET /api/public/projects/ -> 500  ->  500
+[PASS] NODB GET /api/public/projects/: no stack trace / internals in body  ->  500 '{"detail": "Server error."}'
+    body: '{"detail": "Server error."}'  content-type: application/json
+[PASS] NODB GET /api/auth/me/ -> 500  ->  500
+[PASS] NODB GET /api/auth/me/: no stack trace / internals in body  ->  500 '{"detail": "Server error."}'
+    body: '{"detail": "Server error."}'  content-type: application/json
+NODB GET /healthz/ -> 200 '{"status": "ok"}'
+[PASS] NODB /healthz/: no stack trace / internals in body  ->  200 '{"status": "ok"}'
+
+== session cookies, rotation, logout ==
+    Set-Cookie csrftoken: csrftoken=<redacted>; expires=Tue, 12 Oct 2027 15:44:41 GMT; HttpOnly; Max-Age=31449600; Path=/; SameSite=Lax; Secure
+[PASS] login 200  ->  200
+    Set-Cookie sessionid: sessionid=<redacted>; expires=Tue, 27 Oct 2026 15:44:41 GMT; HttpOnly; Max-Age=1209600; Path=/; SameSite=Lax; Secure
+[PASS] session cookie Secure
+[PASS] session cookie HttpOnly
+[PASS] session cookie SameSite=Lax
+[PASS] csrf cookie Secure + SameSite=Lax
+[PASS] session id rotated at login (fixated id not adopted)
+[PASS] authenticated: /api/auth/me/ 200
+[PASS] CSRF token rotated at login
+[PASS] second device gets a different session id
+[PASS] logout 2xx  ->  204
+[PASS] replaying the logged-out session cookie is rejected  ->  403
+[PASS] second device still logged in before logout-all
+[PASS] logout-all 2xx  ->  204
+[PASS] after logout-all the other device is logged out  ->  403
+    me after logout-all: {"detail": "Authentication credentials were not provided."}
+
+0 failure(s)
+exit=0
+
+$ docker logs af-prod-nodb | grep -E "ERROR|OperationalError"   (details stay in server logs)
+2026-10-13 15:44:09,123 ERROR django.request Internal Server Error: /api/public/projects/
+psycopg.OperationalError: failed to resolve host 'db-does-not-exist.invalid': [Errno -2] Name or service not known
+django.db.utils.OperationalError: failed to resolve host 'db-does-not-exist.invalid': [Errno -2] Name or service not known
+$ docker logs af-prod | grep -ciE "password|csrftoken=|sessionid="
+0

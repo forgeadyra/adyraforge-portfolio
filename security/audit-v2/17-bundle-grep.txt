@@ -1,0 +1,32 @@
+Bundle grep, 2026-10-13, on the final production build (security/scripts/bundle_grep.sh).
+Build env: API_INTERNAL_URL=http://127.0.0.1:8000 (server-only), AUDIT_SERVER_ONLY_CANARY=canary-secret-7d1f0b (server-only).
+
+$ sh ../security/scripts/bundle_grep.sh
+browser-shipped files: 107
+grep -lE 'canary-secret-7d1f0b' <browser-shipped>  -> 0 file(s)
+grep -lE 'AUDIT_SERVER_ONLY_CANARY' <browser-shipped>  -> 0 file(s)
+grep -lE '127.0.0.1:8000' <browser-shipped>  -> 0 file(s)
+grep -lE 'API_INTERNAL_URL' <browser-shipped>  -> 0 file(s)
+grep -lE 'backend:8000' <browser-shipped>  -> 0 file(s)
+grep -lE '/admin/' <browser-shipped>  -> 0 file(s)
+grep -lE 'SECRET_KEY' <browser-shipped>  -> 0 file(s)
+grep -lE 'TURNSTILE_SECRET' <browser-shipped>  -> 0 file(s)
+grep -lE 'DATABASE_URL' <browser-shipped>  -> 0 file(s)
+grep -lE 'postgres://' <browser-shipped>  -> 0 file(s)
+grep -lE 'EMAIL_HOST_PASSWORD' <browser-shipped>  -> 0 file(s)
+grep -lE 'BEGIN .*PRIVATE KEY' <browser-shipped>  -> 0 file(s)
+grep -lE 'sk_live_' <browser-shipped>  -> 0 file(s)
+grep -lE 'AKIA[0-9A-Z]{16}' <browser-shipped>  -> 0 file(s)
+grep -lE 'sourceMappingURL' <browser-shipped>  -> 0 file(s)
+source maps anywhere in .next:
+.next/server/edge-runtime-webpack.js.map
+.next/server/src/middleware.js.map
+server-only canary anywhere in .next: 0 file(s)
+
+Positive control (proves the grep sees shipped files): grep -lE 'localhost:8000' (the PUBLIC NEXT_PUBLIC_API_URL) .next/static -> 12 file(s)
+
+--- triage ---
+The two .map files are under .next/server (edge middleware) and are never served under /_next/static;
+no client chunk carries a sourceMappingURL. API_INTERNAL_URL is read from process.env at runtime
+(src/middleware.ts:7, src/lib/content.ts:11), not inlined, so even server output lacks it.
+Result: no secret, internal URL, admin path or source map in anything shipped to browsers.

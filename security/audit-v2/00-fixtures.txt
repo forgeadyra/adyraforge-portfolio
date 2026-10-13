@@ -1,0 +1,7 @@
+$ python audit_fixtures.py
+2026-10-13 14:58:53,180 INFO axes.handlers.database AXES: Reset 0 access attempts from database.
+2026-10-13 14:58:53,350 INFO axes.handlers.database AXES: Reset 0 access attempts from database.
+2026-10-13 14:58:53,504 INFO axes.handlers.database AXES: Reset 0 access attempts from database.
+audit fixtures ready (credentials in /tmp/audit_creds.json, not printed)
+bob object ids: {'project': 4, 'milestone': 6, 'message': 5, 'file': 4, 'invoice': 4}
+exit=0

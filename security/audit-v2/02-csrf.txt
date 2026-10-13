@@ -1,0 +1,11 @@
+$ python csrf_check.py
+[PASS] POST message without X-CSRFToken -> 403  ->  403 {"detail":"CSRF Failed: CSRF token missing."}
+[PASS] POST message with forged token -> 403  ->  403
+[PASS] POST with valid token but evil Origin -> 403  ->  403
+[PASS] POST logout-all without token -> 403  ->  403
+[PASS] POST password change without token -> 403  ->  403
+[PASS] HTML-form style POST (no JSON, no token) -> rejected  ->  415
+[PASS] control: same POST with valid token -> 201  ->  201
+
+0 failure(s)
+exit=0

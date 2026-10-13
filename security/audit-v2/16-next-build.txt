@@ -1,0 +1,60 @@
+
+> adyraforge-frontend@0.1.0 build
+> next build
+
+   ▲ Next.js 15.5.27
+
+   Creating an optimized production build ...
+ ✓ Compiled successfully in 3.7s
+   Skipping linting
+   Checking validity of types ...
+   Collecting page data ...
+   Generating static pages (0/23) ...
+   Generating static pages (5/23) 
+   Generating static pages (11/23) 
+   Generating static pages (17/23) 
+ ✓ Generating static pages (23/23)
+   Finalizing page optimization ...
+   Collecting build traces ...
+
+Route (app)                                 Size  First Load JS  Revalidate  Expire
+┌ ○ /                                    4.77 kB         117 kB          1h      1y
+├ ○ /_not-found                            147 B         103 kB
+├ ○ /about                                 812 B         107 kB
+├ ○ /contact                              4.8 kB         111 kB
+├ ○ /forgot-password                      2.9 kB         109 kB
+├ ○ /icon.svg                                0 B            0 B
+├ ƒ /invite/[token]                      3.23 kB         110 kB
+├ ○ /login                               3.21 kB         110 kB
+├ ○ /opengraph-image                       147 B         103 kB
+├ ○ /planner                             5.84 kB         112 kB
+├ ○ /portal                              3.45 kB         110 kB
+├ ○ /portal/account                      3.28 kB         110 kB
+├ ○ /portal/files                        3.34 kB         110 kB
+├ ○ /portal/invoices                       167 B         110 kB
+├ ƒ /portal/projects/[id]                1.53 kB         111 kB
+├ ƒ /portal/projects/[id]/messages       3.62 kB         110 kB
+├ ƒ /reset-password/[uid]/[token]        3.15 kB         110 kB
+├ ○ /robots.txt                            147 B         103 kB
+├ ○ /services                            1.57 kB         108 kB          1h      1y
+├ ○ /sitemap.xml                           147 B         103 kB          1h      1y
+├ ○ /work                                2.62 kB         114 kB          1h      1y
+├ ● /work/[slug]                         1.88 kB         114 kB          1h      1y
+├   ├ /work/latelier-de-gastronomie                                      1h      1y
+├   ├ /work/medicare-plus                                                1h      1y
+├   ├ /work/nexus-operations-dashboard                                   1h      1y
+├   └ /work/aether-product-launch                                        1h      1y
+└ ƒ /work/[slug]/opengraph-image-j16k26    147 B         103 kB
++ First Load JS shared by all             103 kB
+  ├ chunks/1255-5cd2fe06309409a0.js      46.5 kB
+  ├ chunks/4bd1b696-f785427dddbba9fb.js  54.2 kB
+  └ other shared chunks (total)           2.3 kB
+
+
+ƒ Middleware                             34.3 kB
+
+○  (Static)   prerendered as static content
+●  (SSG)      prerendered as static HTML (uses generateStaticParams)
+ƒ  (Dynamic)  server-rendered on demand
+
+exit=0

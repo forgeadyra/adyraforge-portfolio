@@ -5,7 +5,10 @@ from .base import (
     CORS_ALLOWED_ORIGINS,
     CSRF_TRUSTED_ORIGINS,
     DATABASE_URL,
+    EMAIL_BACKEND,
+    FRONTEND_URL,
     SECRET_KEY,
+    TURNSTILE_SECRET_KEY,
 )
 from .validation import validate_production_settings
 
@@ -28,4 +31,7 @@ validate_production_settings(
     admin_url=ADMIN_URL,
     cors_allowed_origins=CORS_ALLOWED_ORIGINS,
     csrf_trusted_origins=CSRF_TRUSTED_ORIGINS,
+    frontend_url=FRONTEND_URL,
+    email_backend=EMAIL_BACKEND,
+    turnstile_secret=TURNSTILE_SECRET_KEY,
 )

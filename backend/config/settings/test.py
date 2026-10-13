@@ -22,4 +22,9 @@ SECURE_SSL_REDIRECT = False
 MEDIA_ROOT = tempfile.mkdtemp(prefix="af-media-")
 PRIVATE_MEDIA_ROOT = tempfile.mkdtemp(prefix="af-private-")
 
+FRONTEND_URL = "https://adyraforge.test"
+EMAIL_BACKEND = "django.core.mail.backends.locmem.EmailBackend"
+EMAIL_SEND_ASYNC = False
+TURNSTILE_SECRET_KEY = "test-secret-verification-is-mocked"  # noqa: S105
+
 CACHES = {"default": {"BACKEND": "django.core.cache.backends.locmem.LocMemCache"}}

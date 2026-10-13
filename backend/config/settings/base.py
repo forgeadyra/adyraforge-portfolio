@@ -128,13 +128,15 @@ AUTHENTICATION_BACKENDS = [
 
 # django-axes: lock a username+IP pair after repeated failures.
 AXES_FAILURE_LIMIT = env.int("AXES_FAILURE_LIMIT", default=5)
-AXES_COOLOFF_TIME = timedelta(hours=1)
+AXES_COOLOFF_TIME = timedelta(minutes=30)
 AXES_LOCKOUT_PARAMETERS = [["username", "ip_address"]]
 AXES_RESET_ON_SUCCESS = True
 # Django's authenticate() and the admin form both use "username" (axes would
 # default to USERNAME_FIELD, "email", and silently key lockouts on nothing).
 AXES_USERNAME_FORM_FIELD = "username"
 AXES_USERNAME_CALLABLE = "apps.accounts.axes.lockout_username"
+# Our own 429 JSON: axes' default sets Access-Control-Allow-Origin "*".
+AXES_LOCKOUT_CALLABLE = "apps.accounts.lockout.lockout_response"
 AXES_SENSITIVE_PARAMETERS = ["password", "otp_token"]
 
 # --- Sessions, CSRF, cookies (rule 4) -----------------------------------------
@@ -142,7 +144,16 @@ SESSION_COOKIE_HTTPONLY = True
 SESSION_COOKIE_SECURE = True
 SESSION_COOKIE_SAMESITE = "Lax"
 SESSION_COOKIE_DOMAIN = env("SESSION_COOKIE_DOMAIN", default=None)
-SESSION_COOKIE_AGE = env.int("SESSION_COOKIE_AGE", default=60 * 60 * 24 * 7)
+# Absolute 2-week lifetime from login (not extended by activity).
+SESSION_COOKIE_AGE = 60 * 60 * 24 * 14
+SESSION_SAVE_EVERY_REQUEST = False
+
+# Password reset links: 1 hour, single-use (Django's token generator).
+PASSWORD_RESET_TIMEOUT = 60 * 60
+# Client invite links: 72 hours, single-use (apps.accounts.tokens).
+INVITE_MAX_AGE = 60 * 60 * 72
+# Signed private-file download links.
+DOWNLOAD_URL_MAX_AGE = 60 * 5
 
 # The frontend gets the CSRF token from /api/auth/csrf/ (JSON body), never by
 # reading the cookie, so the cookie can stay HttpOnly.
@@ -198,6 +209,8 @@ REST_FRAMEWORK = {
     "DEFAULT_PERMISSION_CLASSES": ["rest_framework.permissions.IsAuthenticated"],
     "DEFAULT_RENDERER_CLASSES": ["rest_framework.renderers.JSONRenderer"],
     "DEFAULT_PARSER_CLASSES": ["rest_framework.parsers.JSONParser"],
+    "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
+    "PAGE_SIZE": 50,
     "DEFAULT_THROTTLE_CLASSES": [
         "rest_framework.throttling.AnonRateThrottle",
         "rest_framework.throttling.UserRateThrottle",
@@ -209,10 +222,27 @@ REST_FRAMEWORK = {
         # Stricter scopes for sensitive public actions.
         "login": env("THROTTLE_LOGIN", default="5/min"),
         "password_reset": env("THROTTLE_PASSWORD_RESET", default="3/hour"),
+        "password_reset_confirm": env("THROTTLE_PASSWORD_RESET_CONFIRM", default="10/hour"),
+        "password_change": env("THROTTLE_PASSWORD_CHANGE", default="5/hour"),
+        "invite_accept": env("THROTTLE_INVITE_ACCEPT", default="10/hour"),
         "contact": env("THROTTLE_CONTACT", default="5/hour"),
         "planner": env("THROTTLE_PLANNER", default="10/hour"),
     },
 }
+
+# --- Email, links, bot protection --------------------------------------------
+# Frontend origin used in emailed links (invite, password reset).
+FRONTEND_URL = env("FRONTEND_URL", default="http://localhost:3000").rstrip("/")
+# EMAIL_URL e.g. smtp+tls://user:pass@smtp.example.com:587 (console in dev).
+EMAIL_URL = env("EMAIL_URL", default="consolemail://")
+vars().update(env.email_url_config(EMAIL_URL))
+EMAIL_TIMEOUT = 10
+DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", default="AdyraForge <noreply@adyraforge.com>")
+SERVER_EMAIL = DEFAULT_FROM_EMAIL
+# Send auth emails off the request thread so timing can't reveal account existence.
+EMAIL_SEND_ASYNC = env.bool("EMAIL_SEND_ASYNC", default=True)
+# Read raw (may start with "$"). Cloudflare's public test keys work in development.
+TURNSTILE_SECRET_KEY = os.environ.get("TURNSTILE_SECRET_KEY", "")
 
 # --- i18n / static ------------------------------------------------------------
 LANGUAGE_CODE = "en-us"

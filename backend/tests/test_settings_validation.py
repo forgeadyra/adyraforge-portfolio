@@ -23,6 +23,9 @@ def good_settings(**overrides: Any) -> dict[str, Any]:
         "admin_url": "forge-console-7f3a9c2e1b/",
         "cors_allowed_origins": ["https://adyraforge.com"],
         "csrf_trusted_origins": ["https://adyraforge.com"],
+        "frontend_url": "https://adyraforge.com",
+        "email_backend": "django.core.mail.backends.smtp.EmailBackend",
+        "turnstile_secret": "0x4AAAAAAA" + "realistic-secret-value",
     }
     values.update(overrides)
     return values
@@ -51,6 +54,10 @@ def test_valid_production_settings_pass() -> None:
         ({"cors_allowed_origins": []}, "CORS_ALLOWED_ORIGINS is missing"),
         ({"cors_allowed_origins": ["http://adyraforge.com"]}, "https:// origins only"),
         ({"csrf_trusted_origins": ["https://*.adyraforge.com"]}, "https:// origins only"),
+        ({"frontend_url": "http://adyraforge.com"}, "FRONTEND_URL"),
+        ({"email_backend": "django.core.mail.backends.console.EmailBackend"}, "EMAIL_URL"),
+        ({"turnstile_secret": ""}, "TURNSTILE_SECRET_KEY is missing"),
+        ({"turnstile_secret": "1x0000000000" + "000000000000000000000AA"}, "Cloudflare test key"),
     ],
 )
 def test_insecure_production_settings_are_rejected(overrides: dict[str, Any], message: str) -> None:
@@ -88,6 +95,9 @@ PROD_ENV = {
     "ADMIN_URL": "forge-console-7f3a9c2e1b/",
     "CORS_ALLOWED_ORIGINS": "https://adyraforge.com",
     "CSRF_TRUSTED_ORIGINS": "https://adyraforge.com",
+    "FRONTEND_URL": "https://adyraforge.com",
+    "EMAIL_URL": "smtp+tls://mailer:pw@smtp.example.com:587",
+    "TURNSTILE_SECRET_KEY": "0x4AAAAAAA" + "realistic-secret-value",
 }
 
 

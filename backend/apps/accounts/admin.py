@@ -2,6 +2,8 @@ from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as DjangoUserAdmin
 from django.contrib.auth.forms import AdminUserCreationForm, UserChangeForm
 
+from apps.core.admin import AuditedAdminMixin
+
 from .models import User
 
 
@@ -18,7 +20,7 @@ class UserEditForm(UserChangeForm):
 
 
 @admin.register(User)
-class UserAdmin(DjangoUserAdmin):
+class UserAdmin(AuditedAdminMixin, DjangoUserAdmin):
     form = UserEditForm
     add_form = UserCreateForm
     ordering = ("email",)

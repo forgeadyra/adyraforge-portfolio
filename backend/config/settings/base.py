@@ -54,6 +54,10 @@ INSTALLED_APPS = [
     # local
     "apps.core",
     "apps.accounts",
+    "apps.portfolio",
+    "apps.leads",
+    "apps.clients",
+    "apps.recommender",
 ]
 
 MIDDLEWARE = [
@@ -218,6 +222,12 @@ USE_TZ = True
 
 STATIC_URL = "static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
+# Public media (project covers, gallery). Production: Cloudinary.
+MEDIA_URL = "media/"
+MEDIA_ROOT = env.path("MEDIA_ROOT", default=str(BASE_DIR / "media"))
+# Client files and invoices: never under MEDIA_ROOT, never given a public URL.
+PRIVATE_MEDIA_ROOT = env.path("PRIVATE_MEDIA_ROOT", default=str(BASE_DIR / "private_media"))
+
 STORAGES = {
     "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
     "staticfiles": {"BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"},

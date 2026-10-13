@@ -1,6 +1,7 @@
 """pytest settings (DJANGO_ENV=test). Production-like; still needs real PostgreSQL."""
 
 import os
+import tempfile
 
 from django.core.management.utils import get_random_secret_key
 
@@ -16,5 +17,9 @@ CSRF_TRUSTED_ORIGINS = ["https://adyraforge.test"]
 
 # The test client speaks HTTP; the redirect itself is covered by a dedicated test.
 SECURE_SSL_REDIRECT = False
+
+# Uploads in tests go to throwaway directories.
+MEDIA_ROOT = tempfile.mkdtemp(prefix="af-media-")
+PRIVATE_MEDIA_ROOT = tempfile.mkdtemp(prefix="af-private-")
 
 CACHES = {"default": {"BACKEND": "django.core.cache.backends.locmem.LocMemCache"}}

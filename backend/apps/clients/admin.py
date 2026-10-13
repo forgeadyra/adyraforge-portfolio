@@ -1,7 +1,10 @@
 from django.contrib import admin, messages
+from django.utils import timezone
 
 from apps.accounts.emails import send_invite
 from apps.core.admin import AuditedModelAdmin
+from apps.core.audit import record
+from apps.core.models import AuditLog
 
 from .models import ClientProfile, ClientProject, Invoice, Message, Milestone, ProjectFile
 
@@ -48,6 +51,14 @@ class ProjectFileInline(admin.TabularInline):
     readonly_fields = ("original_name", "content_type", "size", "uploaded_by")
 
 
+class InvoiceInline(admin.TabularInline):
+    model = Invoice
+    extra = 0
+    can_delete = False  # financial records; deletion is also PROTECTed in the DB
+    show_change_link = True
+    fields = ("number", "amount", "currency", "status", "issued_on", "due_date", "paid_at", "pdf")
+
+
 class MessageInline(admin.TabularInline):
     model = Message
     extra = 0
@@ -58,10 +69,15 @@ class MessageInline(admin.TabularInline):
 @admin.register(ClientProject)
 class ClientProjectAdmin(AuditedModelAdmin):
     list_display = ("title", "client", "status", "progress", "start_date", "due_date")
-    list_filter = ("status", ("due_date", admin.DateFieldListFilter))
+    list_filter = (
+        "status",
+        ("client", admin.RelatedOnlyFieldListFilter),
+        ("due_date", admin.DateFieldListFilter),
+    )
+    list_select_related = ("client__user",)
     search_fields = ("title", "client__user__email", "client__company")
     autocomplete_fields = ("client", "portfolio_project")
-    inlines = [MilestoneInline, ProjectFileInline, MessageInline]
+    inlines = [MilestoneInline, InvoiceInline, ProjectFileInline, MessageInline]
 
     def save_formset(self, request, form, formset, change):  # type: ignore[no-untyped-def]
         # Stamp the uploader / sender on rows added through the inlines.
@@ -116,7 +132,35 @@ class MessageAdmin(AuditedModelAdmin):
 
 @admin.register(Invoice)
 class InvoiceAdmin(AuditedModelAdmin):
-    list_display = ("number", "client_project", "amount", "currency", "status", "due_date")
-    list_filter = ("status", "currency", ("due_date", admin.DateFieldListFilter))
+    list_display = (
+        "number",
+        "client_project",
+        "amount",
+        "currency",
+        "status",
+        "due_date",
+        "paid_at",
+    )
+    list_filter = (
+        "status",
+        "currency",
+        ("client_project__client", admin.RelatedOnlyFieldListFilter),
+        ("due_date", admin.DateFieldListFilter),
+    )
+    list_select_related = ("client_project__client__user",)
     search_fields = ("number", "client_project__title", "client_project__client__user__email")
     autocomplete_fields = ("client_project",)
+    date_hierarchy = "due_date"
+    actions = ["mark_paid"]
+
+    @admin.action(description="Mark selected sent/overdue invoices as paid (now)")
+    def mark_paid(self, request, queryset):  # type: ignore[no-untyped-def]
+        paid = 0
+        for invoice in queryset.filter(status__in=[Invoice.Status.SENT, Invoice.Status.OVERDUE]):
+            invoice.status = Invoice.Status.PAID
+            invoice.paid_at = timezone.now()
+            invoice.save(update_fields=["status", "paid_at", "updated_at"])
+            record(AuditLog.Action.ADMIN_CHANGE, request=request, actor=request.user,
+                   obj=invoice, message="admin action: marked paid")  # fmt: skip
+            paid += 1
+        self.message_user(request, f"Marked {paid} invoice(s) paid. Drafts/void/paid were skipped.")

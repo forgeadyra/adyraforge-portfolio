@@ -84,6 +84,13 @@ PLANNER = {
 }
 
 
+def test_planner_is_throttled_10_per_hour(human) -> None:
+    codes = [post("/api/leads/planner/", PLANNER).status_code for _ in range(11)]
+    assert codes == [201] * 10 + [429]
+    blocked = post("/api/leads/planner/", PLANNER)
+    assert blocked.status_code == 429 and int(blocked["Retry-After"]) > 0
+
+
 def test_planner_without_contact_stores_anonymous_submission(human) -> None:
     resp = post("/api/leads/planner/", PLANNER)
     assert resp.status_code == 201

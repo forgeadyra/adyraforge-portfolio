@@ -1,3 +1,5 @@
+import os
+
 from .base import *  # noqa: F403
 from .base import (
     ADMIN_URL,
@@ -46,4 +48,14 @@ validate_production_settings(
     email_use_ssl=EMAIL_USE_SSL,
     turnstile_secret=TURNSTILE_SECRET_KEY,
     trusted_proxy_count=TRUSTED_PROXY_COUNT_RAW,
+)
+
+# Error monitoring (off unless SENTRY_DSN is set; scrubbed, see apps/core/monitoring.py).
+# Imported here, not at the top, so a missing package can never mask a config error above.
+from apps.core.monitoring import init_sentry  # noqa: E402
+
+init_sentry(
+    os.environ.get("SENTRY_DSN", ""),
+    environment="production",
+    release=os.environ.get("RENDER_GIT_COMMIT", ""),
 )

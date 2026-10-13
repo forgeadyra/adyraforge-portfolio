@@ -235,11 +235,20 @@ REST_FRAMEWORK = {
 # --- Email, links, bot protection --------------------------------------------
 # Frontend origin used in emailed links (invite, password reset).
 FRONTEND_URL = env("FRONTEND_URL", default="http://localhost:3000").rstrip("/")
-# EMAIL_URL e.g. smtp+tls://user:pass@smtp.example.com:587 (console in dev).
-EMAIL_URL = env("EMAIL_URL", default="consolemail://")
-vars().update(env.email_url_config(EMAIL_URL))
+# SMTP from discrete env vars (Zoho in production). Development forces the console
+# backend; production refuses to boot without a TLS/SSL-secured SMTP server.
+EMAIL_BACKEND = env("EMAIL_BACKEND", default="django.core.mail.backends.smtp.EmailBackend")
+EMAIL_HOST = env("EMAIL_HOST", default="")
+EMAIL_PORT = env.int("EMAIL_PORT", default=587)
+EMAIL_USE_TLS = env.bool("EMAIL_USE_TLS", default=True)
+EMAIL_USE_SSL = env.bool("EMAIL_USE_SSL", default=False)
+EMAIL_HOST_USER = env("EMAIL_HOST_USER", default="")
+# Read raw: a password may start with "$" (django-environ would treat it as a reference).
+EMAIL_HOST_PASSWORD = os.environ.get("EMAIL_HOST_PASSWORD", "")
 EMAIL_TIMEOUT = 10
 DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", default="AdyraForge <noreply@adyraforge.com>")
+# Where new-lead notifications go (used by the planner/contact notifications).
+LEAD_NOTIFY_EMAIL = env("LEAD_NOTIFY_EMAIL", default="")
 SERVER_EMAIL = DEFAULT_FROM_EMAIL
 # Send auth emails off the request thread so timing can't reveal account existence.
 EMAIL_SEND_ASYNC = env.bool("EMAIL_SEND_ASYNC", default=True)

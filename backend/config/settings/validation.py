@@ -50,6 +50,11 @@ def validate_production_settings(
     csrf_trusted_origins: list[str],
     frontend_url: str,
     email_backend: str,
+    email_host: str,
+    email_host_user: str,
+    email_host_password: str,
+    email_use_tls: bool,
+    email_use_ssl: bool,
     turnstile_secret: str,
 ) -> None:
     """Raise ImproperlyConfigured listing every problem found."""
@@ -91,7 +96,16 @@ def validate_production_settings(
         errors.append("FRONTEND_URL must be an https:// URL (used in emailed links).")
 
     if any(dev in email_backend for dev in _DEV_EMAIL_BACKENDS):
-        errors.append("EMAIL_URL must point at a real mail server (invites, password reset).")
+        errors.append("EMAIL_BACKEND must be SMTP in production (invites, password reset).")
+    for name, value in (
+        ("EMAIL_HOST", email_host),
+        ("EMAIL_HOST_USER", email_host_user),
+        ("EMAIL_HOST_PASSWORD", email_host_password),
+    ):
+        if not value:
+            errors.append(f"{name} is missing.")
+    if email_use_tls == email_use_ssl:
+        errors.append("Set exactly one of EMAIL_USE_TLS / EMAIL_USE_SSL (never plaintext SMTP).")
 
     if not turnstile_secret:
         errors.append("TURNSTILE_SECRET_KEY is missing.")

@@ -15,6 +15,9 @@ if problem := secret_key_problem(SECRET_KEY):
 ALLOWED_HOSTS = ALLOWED_HOSTS or ["localhost", "127.0.0.1"]
 ADMIN_URL = ADMIN_URL or "admin/"
 
+# Emails print to the backend log in development; never sent.
+EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
+
 # localhost is plain HTTP: no HTTPS redirect, no Secure-only cookies, no HSTS.
 SECURE_SSL_REDIRECT = False
 SECURE_HSTS_SECONDS = 0

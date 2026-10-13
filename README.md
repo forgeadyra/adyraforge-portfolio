@@ -112,7 +112,8 @@ Git hooks (gitleaks, ruff, black, eslint, prettier): `pre-commit install`.
 | `ADMIN_URL` | unguessable, 16+ chars, trailing slash |
 | `CORS_ALLOWED_ORIGINS`, `CSRF_TRUSTED_ORIGINS` | `https://adyraforge.com` (https only, explicit) |
 | `FRONTEND_URL` | `https://adyraforge.com` (used in emailed invite/reset links) |
-| `EMAIL_URL` | a real SMTP server, e.g. `smtp+tls://user:pass@host:587` (console/locmem rejected) |
+| `EMAIL_HOST`, `EMAIL_PORT` (587), `EMAIL_USE_TLS` (True), `EMAIL_HOST_USER`, `EMAIL_HOST_PASSWORD` | SMTP (Zoho). All required in production, with exactly one of TLS/SSL. Development always uses the console backend. |
+| `DEFAULT_FROM_EMAIL`, `LEAD_NOTIFY_EMAIL` | sender address, and where lead notifications go |
 | `TURNSTILE_SECRET_KEY` | real Cloudflare Turnstile secret (Cloudflare's test keys rejected) |
 | `SESSION_COOKIE_DOMAIN` | `.adyraforge.com`, so Next middleware on adyraforge.com sees the session cookie |
 | `CACHE_URL` | optional; defaults to `dbcache://django_cache` |

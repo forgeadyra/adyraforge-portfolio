@@ -25,6 +25,11 @@ def good_settings(**overrides: Any) -> dict[str, Any]:
         "csrf_trusted_origins": ["https://adyraforge.com"],
         "frontend_url": "https://adyraforge.com",
         "email_backend": "django.core.mail.backends.smtp.EmailBackend",
+        "email_host": "smtp.example.com",
+        "email_host_user": "mailer@example.com",
+        "email_host_password": "placeholder-not-real",
+        "email_use_tls": True,
+        "email_use_ssl": False,
         "turnstile_secret": "0x4AAAAAAA" + "realistic-secret-value",
     }
     values.update(overrides)
@@ -55,7 +60,12 @@ def test_valid_production_settings_pass() -> None:
         ({"cors_allowed_origins": ["http://adyraforge.com"]}, "https:// origins only"),
         ({"csrf_trusted_origins": ["https://*.adyraforge.com"]}, "https:// origins only"),
         ({"frontend_url": "http://adyraforge.com"}, "FRONTEND_URL"),
-        ({"email_backend": "django.core.mail.backends.console.EmailBackend"}, "EMAIL_URL"),
+        ({"email_backend": "django.core.mail.backends.console.EmailBackend"}, "EMAIL_BACKEND"),
+        ({"email_host": ""}, "EMAIL_HOST is missing"),
+        ({"email_host_user": ""}, "EMAIL_HOST_USER is missing"),
+        ({"email_host_password": ""}, "EMAIL_HOST_PASSWORD is missing"),
+        ({"email_use_tls": False}, "never plaintext SMTP"),
+        ({"email_use_ssl": True}, "never plaintext SMTP"),
         ({"turnstile_secret": ""}, "TURNSTILE_SECRET_KEY is missing"),
         ({"turnstile_secret": "1x0000000000" + "000000000000000000000AA"}, "Cloudflare test key"),
     ],
@@ -96,7 +106,9 @@ PROD_ENV = {
     "CORS_ALLOWED_ORIGINS": "https://adyraforge.com",
     "CSRF_TRUSTED_ORIGINS": "https://adyraforge.com",
     "FRONTEND_URL": "https://adyraforge.com",
-    "EMAIL_URL": "smtp+tls://mailer:pw@smtp.example.com:587",
+    "EMAIL_HOST": "smtp.example.com",
+    "EMAIL_HOST_USER": "mailer@example.com",
+    "EMAIL_HOST_PASSWORD": "placeholder-not-real",
     "TURNSTILE_SECRET_KEY": "0x4AAAAAAA" + "realistic-secret-value",
 }
 

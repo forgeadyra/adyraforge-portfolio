@@ -35,7 +35,7 @@ const csp = [
   "default-src 'self'",
   `script-src 'self' 'unsafe-inline' ${TURNSTILE}${isDev ? " 'unsafe-eval'" : ""}`,
   "style-src 'self' 'unsafe-inline'",
-  `img-src 'self' data: blob: ${api.origin} ${media.origin}`,
+  `img-src 'self' data: blob: ${[...new Set([api.origin, media.origin])].join(" ")}`,
   "font-src 'self'",
   `connect-src 'self' ${api.origin} ${TURNSTILE}${isDev ? " ws://localhost:3000" : ""}`,
   `frame-src ${TURNSTILE}`,

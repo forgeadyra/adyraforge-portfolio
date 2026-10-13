@@ -5,8 +5,8 @@ import { ProcessTimeline } from "@/components/site/ProcessTimeline";
 import { ProjectCard } from "@/components/site/ProjectCard";
 import { Reveal } from "@/components/site/Reveal";
 import {
+  BuiltToPerform,
   CtaBand,
-  ProofBar,
   SectionHeading,
   ServiceCards,
   Testimonials,
@@ -17,12 +17,12 @@ import { site } from "@/lib/site";
 export const revalidate = 3600;
 
 export default async function HomePage() {
-  const [stats, featured, services, testimonials] = await Promise.all([
-    content.stats(),
-    content.featured(),
+  const [projects, services, testimonials] = await Promise.all([
+    content.projects(),
     content.services(),
     content.testimonials(),
   ]);
+  const featured = projects.filter((p) => p.is_featured);
 
   return (
     <>
@@ -57,8 +57,8 @@ export default async function HomePage() {
         </div>
       </section>
 
-      {/* 2. Proof bar (real numbers only) */}
-      <ProofBar stats={stats} />
+      {/* 2. Built to perform: real Lighthouse scores, hidden until measured */}
+      <BuiltToPerform projects={projects} />
 
       {/* 3. Featured work */}
       {featured.length > 0 && (

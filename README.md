@@ -125,7 +125,7 @@ Production refuses to boot (`ImproperlyConfigured`) if any of these is missing o
 
 Pages: Home, Work (`/work`, filter by industry and technology), case studies (`/work/[slug]`), Services, Project planner, About, Contact, and a 404. Content comes from the read-only `GET /api/public/*` endpoints with ISR (`revalidate` 1h). If a background revalidation fails, the last good page keeps being served.
 
-- **No invented content.** The proof bar shows real counts. The reply-time promise appears only when `RESPONSE_TIME_HOURS` is set. Service prices appear only once entered in the admin. Testimonials stay hidden until real ones are published. Case-study sections without content aren't rendered.
+- **No invented content.** Every project has `kind` = `client` or `concept`. Concept work always carries a visible **Concept** badge and is never presented as client work. The **Built to perform** strip shows real Lighthouse mobile scores from admin fields, only for projects with all four scores and a measurement date (hidden otherwise). `results_note` lets a case study state limitations honestly. Service prices appear only once entered in the admin. Testimonials stay hidden until real ones are published. Case-study sections without content aren't rendered.
 - **3D hero** (React Three Fiber, faceted AF monogram, bloom, gold rim light) loads only on desktop-class devices (fine pointer, ≥1024px, not low-memory or Save-Data, WebGL2), after `load` plus idle. It pauses when off-screen or the tab is hidden. Phones, reduced-motion and no-WebGL get the SVG poster (`HeroPoster`, same silhouette).
 - **Motion:** Lenis, GSAP ScrollTrigger reveals and the process timeline, and Framer Motion page transitions all load after `load` plus idle. Framer never loads on the first page view. Everything is off under `prefers-reduced-motion`.
 - **SEO:** per-page metadata and canonicals, generated Open Graph images (site and each case study), JSON-LD (Organization, Person, CreativeWork with `<` escaped), `sitemap.xml`, and `robots.txt` (portal and token pages disallowed).
@@ -203,7 +203,8 @@ Sessions: login rotates the session key and CSRF token, and sessions last at mos
 
 ## Known follow-ups
 
-- **Content to fill in (admin):** service "starting from" prices (INR and USD), `RESPONSE_TIME_HOURS`, case-study problem text, result metrics, screenshots and cover images, testimonials, and the mėntality copy (it stays unpublished until then).
+- **Content to fill in (admin):** service "starting from" prices (INR and USD), Lighthouse scores per live project, case-study problem text, result metrics and results notes, screenshots and cover images, testimonials, and the mėntality copy (it stays unpublished until then).
+- **L'Atelier de Gastronomie's live URL is gone.** `phenomenal-belekoy-881bf4.netlify.app` returned Netlify's 404 page on 2026-10-13, so the seed marks it `not_live` with no link. The v1 site still links to it.
 - **3D init on desktop** is one ~230 ms task about a second after load. If real-user INP data shows clicks landing in it, load the scene on first pointer movement instead of on idle.
 - **Admin dashboard frontend.** The OTP-gated `/api/admin/*` endpoints exist; the custom dashboard UI doesn't yet. The Django admin works today.
 - **Revoked sessions linger as rows** until they expire (they can no longer authenticate). Schedule `manage.py clearsessions` daily in production.

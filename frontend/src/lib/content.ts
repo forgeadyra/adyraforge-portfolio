@@ -33,18 +33,30 @@ export interface Service extends ServiceRef {
   price_from_usd: number | null;
 }
 
+export interface Lighthouse {
+  performance: number;
+  accessibility: number;
+  best_practices: number;
+  seo: number;
+  measured_on: string;
+}
+
 export interface ProjectCard {
   slug: string;
   title: string;
   summary: string;
   industry: string;
-  status: "live" | "concept";
+  /** client = paid client work; concept = self-initiated, never shown as a client. */
+  kind: "client" | "concept";
+  status: "live" | "not_live";
   is_featured: boolean;
   live_url: string;
   cover_image: string | null;
   cover_alt: string;
   technologies: Technology[];
   services: ServiceRef[];
+  /** Real Lighthouse mobile scores; null unless all four are entered. */
+  lighthouse: Lighthouse | null;
   updated_at: string;
 }
 
@@ -53,6 +65,7 @@ export interface ProjectDetail extends ProjectCard {
   problem: string;
   solution: string;
   result_metrics: { label: string; value: string }[];
+  results_note: string;
   repo_url: string;
   gallery: { image: string | null; alt_text: string; caption: string }[];
   similar: ProjectCard[];
@@ -69,12 +82,6 @@ export interface Testimonial {
   avatar: string | null;
 }
 
-export interface Stats {
-  live_projects: number;
-  industries: string[];
-  response_time_hours: number | null;
-}
-
 async function get<T>(path: string, fallback: T): Promise<T> {
   if (OFFLINE) return fallback;
   const res = await fetch(`${API}/api/public/${path}`, {
@@ -88,12 +95,9 @@ async function get<T>(path: string, fallback: T): Promise<T> {
 
 export const content = {
   projects: (query = "") => get<ProjectCard[]>(`projects/${query}`, []),
-  featured: () => get<ProjectCard[]>("projects/?featured=1", []),
   project: (slug: string) =>
     get<ProjectDetail | null>(`projects/${encodeURIComponent(slug)}/`, null),
   services: () => get<Service[]>("services/", []),
   technologies: () => get<Technology[]>("technologies/", []),
   testimonials: () => get<Testimonial[]>("testimonials/", []),
-  stats: () =>
-    get<Stats>("stats/", { live_projects: 0, industries: [], response_time_hours: null }),
 };

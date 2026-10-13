@@ -13,8 +13,12 @@ services:
     region: singapore # closest to Neon ap-southeast-1; change both together
     plan: starter
     healthCheckPath: /healthz/
-    # Paid instance types only. On a free instance, run these once from the Render shell.
-    preDeployCommand: python manage.py migrate --noinput && python manage.py createcachetable
+    # Release command: schema changes run as the database OWNER (MIGRATION_DATABASE_URL);
+    # the running app uses the least-privilege adyraforge_app role (DATABASE_URL), which
+    # cannot create, alter or drop tables. Unset MIGRATION_DATABASE_URL fails the deploy.
+    preDeployCommand: >-
+      sh -c 'DATABASE_URL="$MIGRATION_DATABASE_URL" python manage.py migrate --noinput
+      && DATABASE_URL="$MIGRATION_DATABASE_URL" python manage.py createcachetable'
     autoDeploy: false # deploy deliberately while v2 is new
     envVars:
       - key: DJANGO_ENV
@@ -42,7 +46,9 @@ services:
         sync: false
       - key: ADMIN_URL # unguessable, 16+ chars, trailing slash
         sync: false
-      - key: DATABASE_URL # Neon direct (non-pooled) URL with ?sslmode=require
+      - key: DATABASE_URL # Neon direct URL for adyraforge_app, ?sslmode=require
+        sync: false
+      - key: MIGRATION_DATABASE_URL # Neon direct URL for the DB owner, ?sslmode=require
         sync: false
       - key: TURNSTILE_SECRET_KEY
         sync: false
@@ -55,4 +61,6 @@ services:
       - key: DEFAULT_FROM_EMAIL
         sync: false
       - key: LEAD_NOTIFY_EMAIL
+        sync: false
+      - key: SENTRY_DSN # optional; errors only, PII off (apps/core/monitoring.py)
         sync: false

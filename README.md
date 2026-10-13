@@ -108,7 +108,8 @@ Git hooks (gitleaks, ruff, black, eslint, prettier): `pre-commit install`.
 | `DJANGO_ENV` | `production`. Unset or unknown also means production (fail closed). |
 | `SECRET_KEY` | 50+ chars, not a placeholder, not `django-insecure…` |
 | `ALLOWED_HOSTS` | e.g. `api.adyraforge.com`, no wildcards |
-| `DATABASE_URL` | `postgres://…` (Neon). Non-PostgreSQL is rejected in every environment. |
+| `DATABASE_URL` | `postgres://…?sslmode=require` (Neon), as the least-privilege `adyraforge_app` role (`deploy/neon_app_role.sql`). Non-PostgreSQL is rejected everywhere; production also rejects a URL without `sslmode=require`/`verify-*`. |
+| `MIGRATION_DATABASE_URL` | Neon URL for the database owner. Used only by the release command (`migrate`, `createcachetable`); the running app never sees it. |
 | `ADMIN_URL` | unguessable, 16+ chars, trailing slash |
 | `CORS_ALLOWED_ORIGINS`, `CSRF_TRUSTED_ORIGINS` | `https://adyraforge.com` (https only, explicit) |
 | `FRONTEND_URL` | `https://adyraforge.com` (used in emailed invite/reset links) |
@@ -118,10 +119,11 @@ Git hooks (gitleaks, ruff, black, eslint, prettier): `pre-commit install`.
 | `TRUSTED_PROXY_COUNT` | reverse proxies that append to `X-Forwarded-For`: `1` on Render, `0` with no proxy. Must be set explicitly. Too low = every visitor shares one throttle/lockout bucket; too high = spoofable client IPs. |
 | `SESSION_COOKIE_DOMAIN` | `.adyraforge.com`, so Next middleware on adyraforge.com sees the session cookie |
 | `CACHE_URL` | optional; defaults to `dbcache://django_cache` |
+| `SENTRY_DSN` | optional. Error monitoring with all data collection off and an extra scrubber (`apps/core/monitoring.py`). |
 
 Production refuses to boot (`ImproperlyConfigured`) if any of these is missing or insecure.
 
-**Frontend.** `NEXT_PUBLIC_API_URL` must be `https://` for production builds; the build fails otherwise. Never put a secret in a `NEXT_PUBLIC_*` variable.
+**Frontend.** `NEXT_PUBLIC_API_URL` must be `https://` for production builds; the build fails otherwise. Never put a secret in a `NEXT_PUBLIC_*` variable. `NEXT_PUBLIC_SENTRY_DSN` (optional) enables Sentry in the browser (lazy-loaded after first paint, tunnelled through `/monitoring`) and the Node server; a DSN is a public identifier, not a secret.
 
 ## Public site
 
@@ -217,4 +219,3 @@ Sessions: login rotates the session key and CSRF token, and sessions last at mos
 - **Budget bands** in `leads.BudgetRange` are placeholders. Adjust them to your real pricing.
 
 - **CSP on the frontend** allows `'unsafe-inline'` scripts, because Next's hydration scripts are inline. The strict alternative is a per-request nonce via middleware, which makes every page dynamic (no static/CDN caching). This is a performance-versus-security decision still to make.
-- **Error monitoring.** No Sentry yet (SECURITY_AUDIT_V2 M-6). Needs a DSN; configure with `send_default_pii=False`.

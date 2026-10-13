@@ -13,3 +13,27 @@
   # in the Netlify UI. Nothing secret ever goes in this file or in NEXT_PUBLIC_*.
   NEXT_PUBLIC_API_URL = "https://api.adyraforge.com"
   NEXT_PUBLIC_SITE_URL = "https://adyraforge.com"
+
+# Same security headers as frontend/next.config.ts (production values), applied by
+# Netlify's edge as well, so static assets and CDN-cached pages carry them too.
+# Keep both in sync: frontend/src/lib/netlify-headers.test.ts fails if they differ.
+# img-src/connect-src list only the API origin. Add the media CDN origin
+# (Cloudinary/S3) once the production storage decision is made.
+[[headers]]
+  for = "/*"
+  [headers.values]
+    Content-Security-Policy = "default-src 'self'; script-src 'self' 'unsafe-inline' https://challenges.cloudflare.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://api.adyraforge.com; font-src 'self'; connect-src 'self' https://api.adyraforge.com https://challenges.cloudflare.com; frame-src https://challenges.cloudflare.com; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests"
+    Strict-Transport-Security = "max-age=31536000; includeSubDomains; preload"
+    X-Frame-Options = "DENY"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    Cross-Origin-Opener-Policy = "same-origin"
+    Permissions-Policy = "accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=(), interest-cohort=()"
+
+# Force HTTPS on the apex and www (Netlify also redirects http -> https once the
+# certificate is issued; "Force HTTPS" stays on in the domain settings).
+[[redirects]]
+  from = "https://www.adyraforge.com/*"
+  to = "https://adyraforge.com/:splat"
+  status = 301
+  force = true

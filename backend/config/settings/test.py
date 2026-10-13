@@ -1,0 +1,20 @@
+"""pytest settings (DJANGO_ENV=test). Production-like; still needs real PostgreSQL."""
+
+import os
+
+from django.core.management.utils import get_random_secret_key
+
+# A fresh random key per run; nothing is hard-coded.
+os.environ.setdefault("SECRET_KEY", get_random_secret_key())
+
+from .base import *  # noqa: F403
+
+ALLOWED_HOSTS = ["testserver", "localhost"]
+ADMIN_URL = "test-admin-path-0123456789/"
+CORS_ALLOWED_ORIGINS = ["https://adyraforge.test"]
+CSRF_TRUSTED_ORIGINS = ["https://adyraforge.test"]
+
+# The test client speaks HTTP; the redirect itself is covered by a dedicated test.
+SECURE_SSL_REDIRECT = False
+
+CACHES = {"default": {"BACKEND": "django.core.cache.backends.locmem.LocMemCache"}}

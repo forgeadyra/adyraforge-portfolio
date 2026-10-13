@@ -1,0 +1,31 @@
+from .base import *  # noqa: F403
+from .base import (
+    ADMIN_URL,
+    ALLOWED_HOSTS,
+    CORS_ALLOWED_ORIGINS,
+    CSRF_TRUSTED_ORIGINS,
+    DATABASE_URL,
+    SECRET_KEY,
+)
+from .validation import validate_production_settings
+
+DEBUG = False
+
+# Render/Railway terminate TLS and set X-Forwarded-Proto; they strip any
+# client-supplied copy, so it is safe to trust here and only here.
+SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+
+STORAGES = {
+    "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
+    "staticfiles": {"BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage"},
+}
+
+validate_production_settings(
+    secret_key=SECRET_KEY,
+    allowed_hosts=ALLOWED_HOSTS,
+    database_url=DATABASE_URL,
+    debug=DEBUG,
+    admin_url=ADMIN_URL,
+    cors_allowed_origins=CORS_ALLOWED_ORIGINS,
+    csrf_trusted_origins=CSRF_TRUSTED_ORIGINS,
+)

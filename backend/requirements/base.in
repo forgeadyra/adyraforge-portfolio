@@ -1,0 +1,13 @@
+# Runtime dependencies. Compile with:
+#   pip-compile --generate-hashes --strip-extras -o base.txt base.in
+Django>=5.2,<5.3
+djangorestframework
+django-environ
+argon2-cffi
+psycopg[binary]
+django-cors-headers
+django-csp>=4,<5
+django-axes
+django-otp
+whitenoise
+gunicorn

@@ -115,6 +115,7 @@ Git hooks (gitleaks, ruff, black, eslint, prettier): `pre-commit install`.
 | `EMAIL_HOST`, `EMAIL_PORT` (587), `EMAIL_USE_TLS` (True), `EMAIL_HOST_USER`, `EMAIL_HOST_PASSWORD` | SMTP (Zoho). All required in production, with exactly one of TLS/SSL. Development always uses the console backend. |
 | `DEFAULT_FROM_EMAIL`, `LEAD_NOTIFY_EMAIL` | sender address, and where lead notifications go |
 | `TURNSTILE_SECRET_KEY` | real Cloudflare Turnstile secret (Cloudflare's test keys rejected) |
+| `TRUSTED_PROXY_COUNT` | reverse proxies that append to `X-Forwarded-For`: `1` on Render, `0` with no proxy. Must be set explicitly. Too low = every visitor shares one throttle/lockout bucket; too high = spoofable client IPs. |
 | `SESSION_COOKIE_DOMAIN` | `.adyraforge.com`, so Next middleware on adyraforge.com sees the session cookie |
 | `CACHE_URL` | optional; defaults to `dbcache://django_cache` |
 
@@ -199,8 +200,9 @@ Sessions: login rotates the session key and CSRF token, and sessions last at mos
 
 > **Do not push this to `main` yet.** Netlify currently publishes the repo root (the v1 `index.html`). Pushing as-is would publish `backend/`, `CLAUDE.md`, `SECURITY_AUDIT_V1.md` and everything else at `adyraforge.netlify.app/...`. First change the Netlify site to base directory `frontend`, or move v1 elsewhere.
 
+- Step-by-step runbook: [`DEPLOY.md`](DEPLOY.md). Render blueprint: [`render.yaml`](render.yaml). Netlify build for v2: [`netlify.toml`](netlify.toml) (base directory `frontend`).
 - Backend image: `docker build -f backend/Dockerfile --target prod .`. It runs `collectstatic` on start, then gunicorn on `$PORT`. Run `migrate` and `createcachetable` as the platform's release / pre-deploy command.
-- `/healthz/` is exempt from the HTTPS redirect for platform health checks.
+- `/healthz/` is answered before Host validation and the HTTPS redirect, so platform probes by container IP work.
 
 ## Known follow-ups
 
@@ -215,4 +217,4 @@ Sessions: login rotates the session key and CSRF token, and sessions last at mos
 - **Budget bands** in `leads.BudgetRange` are placeholders. Adjust them to your real pricing.
 
 - **CSP on the frontend** allows `'unsafe-inline'` scripts, because Next's hydration scripts are inline. The strict alternative is a per-request nonce via middleware, which makes every page dynamic (no static/CDN caching). This is a performance-versus-security decision still to make.
-- **Client IP behind a proxy.** django-axes uses `REMOTE_ADDR`, which on Render is the proxy. Before going live, configure trusted-proxy IP extraction, so lockouts are per client and not per proxy.
+- **Error monitoring.** No Sentry yet (SECURITY_AUDIT_V2 M-6). Needs a DSN; configure with `send_default_pii=False`.

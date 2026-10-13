@@ -1,0 +1,58 @@
+# Render Blueprint for the AdyraForge API (backend/). See DEPLOY.md.
+# Placeholders only. Every `sync: false` value is entered in the Render dashboard,
+# never committed. Production refuses to boot if any required value is missing or weak.
+services:
+  - type: web
+    name: adyraforge-api
+    runtime: docker
+    # Repo root is the build context: the backend imports /ml as a package.
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: .
+    # The last Dockerfile stage (prod) is built: hash-pinned base.txt, read-only code,
+    # collectstatic on start, then gunicorn on $PORT.
+    region: singapore # closest to Neon ap-southeast-1; change both together
+    plan: starter
+    healthCheckPath: /healthz/
+    # Paid instance types only. On a free instance, run these once from the Render shell.
+    preDeployCommand: python manage.py migrate --noinput && python manage.py createcachetable
+    autoDeploy: false # deploy deliberately while v2 is new
+    envVars:
+      - key: DJANGO_ENV
+        value: production
+      - key: TRUSTED_PROXY_COUNT
+        value: "1" # Render's load balancer appends one X-Forwarded-For entry
+      - key: ALLOWED_HOSTS
+        value: api.adyraforge.com
+      - key: CORS_ALLOWED_ORIGINS
+        value: https://adyraforge.com
+      - key: CSRF_TRUSTED_ORIGINS
+        value: https://adyraforge.com
+      - key: FRONTEND_URL
+        value: https://adyraforge.com
+      - key: SESSION_COOKIE_DOMAIN
+        value: .adyraforge.com
+      - key: EMAIL_PORT
+        value: "587"
+      - key: EMAIL_USE_TLS
+        value: "True"
+      - key: WEB_CONCURRENCY
+        value: "2"
+      # --- secrets and per-account values: set in the dashboard -----------------
+      - key: SECRET_KEY # 50+ chars; see DEPLOY.md (Render's generateValue is too short)
+        sync: false
+      - key: ADMIN_URL # unguessable, 16+ chars, trailing slash
+        sync: false
+      - key: DATABASE_URL # Neon direct (non-pooled) URL with ?sslmode=require
+        sync: false
+      - key: TURNSTILE_SECRET_KEY
+        sync: false
+      - key: EMAIL_HOST
+        sync: false
+      - key: EMAIL_HOST_USER
+        sync: false
+      - key: EMAIL_HOST_PASSWORD
+        sync: false
+      - key: DEFAULT_FROM_EMAIL
+        sync: false
+      - key: LEAD_NOTIFY_EMAIL
+        sync: false

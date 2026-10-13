@@ -1,0 +1,15 @@
+# Netlify build for the v2 frontend. Only frontend/ is built and published, so no
+# other repo file (backend/, CLAUDE.md, security/, ...) can ever be served.
+# Security headers come from frontend/next.config.ts via Netlify's Next.js runtime.
+[build]
+  base = "frontend"
+  command = "npm run build"
+  publish = ".next"
+
+[build.environment]
+  NODE_VERSION = "22"
+  NEXT_TELEMETRY_DISABLED = "1"
+  # Public, non-secret values. NEXT_PUBLIC_TURNSTILE_SITE_KEY (also public) is set
+  # in the Netlify UI. Nothing secret ever goes in this file or in NEXT_PUBLIC_*.
+  NEXT_PUBLIC_API_URL = "https://api.adyraforge.com"
+  NEXT_PUBLIC_SITE_URL = "https://adyraforge.com"

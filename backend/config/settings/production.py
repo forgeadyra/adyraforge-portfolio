@@ -13,6 +13,7 @@ from .base import (
     EMAIL_USE_TLS,
     FRONTEND_URL,
     SECRET_KEY,
+    TRUSTED_PROXY_COUNT_RAW,
     TURNSTILE_SECRET_KEY,
 )
 from .validation import validate_production_settings
@@ -44,4 +45,5 @@ validate_production_settings(
     email_use_tls=EMAIL_USE_TLS,
     email_use_ssl=EMAIL_USE_SSL,
     turnstile_secret=TURNSTILE_SECRET_KEY,
+    trusted_proxy_count=TRUSTED_PROXY_COUNT_RAW,
 )

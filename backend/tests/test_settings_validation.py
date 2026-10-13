@@ -31,6 +31,7 @@ def good_settings(**overrides: Any) -> dict[str, Any]:
         "email_use_tls": True,
         "email_use_ssl": False,
         "turnstile_secret": "0x4AAAAAAA" + "realistic-secret-value",
+        "trusted_proxy_count": "1",
     }
     values.update(overrides)
     return values
@@ -68,6 +69,10 @@ def test_valid_production_settings_pass() -> None:
         ({"email_use_ssl": True}, "never plaintext SMTP"),
         ({"turnstile_secret": ""}, "TURNSTILE_SECRET_KEY is missing"),
         ({"turnstile_secret": "1x0000000000" + "000000000000000000000AA"}, "Cloudflare test key"),
+        ({"trusted_proxy_count": ""}, "TRUSTED_PROXY_COUNT must be set"),
+        ({"trusted_proxy_count": "-1"}, "TRUSTED_PROXY_COUNT must be set"),
+        ({"trusted_proxy_count": "one"}, "TRUSTED_PROXY_COUNT must be set"),
+        ({"trusted_proxy_count": "9"}, "TRUSTED_PROXY_COUNT must be set"),
     ],
 )
 def test_insecure_production_settings_are_rejected(overrides: dict[str, Any], message: str) -> None:
@@ -110,6 +115,7 @@ PROD_ENV = {
     "EMAIL_HOST_USER": "mailer@example.com",
     "EMAIL_HOST_PASSWORD": "placeholder-not-real",
     "TURNSTILE_SECRET_KEY": "0x4AAAAAAA" + "realistic-secret-value",
+    "TRUSTED_PROXY_COUNT": "1",
 }
 
 
@@ -145,7 +151,9 @@ def test_secret_key_starting_with_dollar_is_used_verbatim() -> None:
     assert result.stdout.strip() == "True"
 
 
-@pytest.mark.parametrize("missing", ["SECRET_KEY", "ALLOWED_HOSTS", "DATABASE_URL"])
+@pytest.mark.parametrize(
+    "missing", ["SECRET_KEY", "ALLOWED_HOSTS", "DATABASE_URL", "TRUSTED_PROXY_COUNT"]
+)
 def test_production_refuses_to_boot_without_required_env(missing: str) -> None:
     env = {k: v for k, v in PROD_ENV.items() if k != missing}
     result = _boot(env)

@@ -1,18 +1,38 @@
+import ipaddress
+
+from django.conf import settings
 from django.http import HttpRequest
 from django.utils.crypto import salted_hmac
 
 _IP_HASH_SALT = "adyraforge.core.ip_hash"
 
 
-def client_ip(request: HttpRequest | None) -> str:
-    """The connecting IP.
+def _valid_ip(value: str) -> str:
+    value = value.strip()
+    try:
+        return str(ipaddress.ip_address(value))
+    except ValueError:
+        return ""
 
-    REMOTE_ADDR only for now. Behind Render's proxy this is the proxy until
-    trusted-proxy parsing is configured (README, "Known follow-ups").
+
+def client_ip(request: HttpRequest | None) -> str:
+    """The real client IP, used by axes, the DRF throttles and the stored IP hash.
+
+    With TRUSTED_PROXY_COUNT = 0 (local dev, no proxy) this is REMOTE_ADDR and any
+    X-Forwarded-For is ignored: it is client-controlled. With N trusted proxies in
+    front (Render = 1) each one appends the address it saw, so the client is the
+    N-th entry from the right; everything left of it is client-supplied and ignored.
+    Same selection as DRF's NUM_PROXIES, which settings set to the same value.
     """
     if request is None:
         return ""
-    return str(request.META.get("REMOTE_ADDR", ""))
+    remote_addr = _valid_ip(str(request.META.get("REMOTE_ADDR", "")))
+    proxies = settings.TRUSTED_PROXY_COUNT
+    xff = request.META.get("HTTP_X_FORWARDED_FOR")
+    if proxies <= 0 or not xff:
+        return remote_addr
+    addrs = str(xff).split(",")
+    return _valid_ip(addrs[-min(proxies, len(addrs))]) or remote_addr
 
 
 def hash_ip(ip: str) -> str:

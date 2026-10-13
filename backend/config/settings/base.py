@@ -139,6 +139,14 @@ AXES_USERNAME_CALLABLE = "apps.accounts.axes.lockout_username"
 AXES_LOCKOUT_CALLABLE = "apps.accounts.lockout.lockout_response"
 AXES_SENSITIVE_PARAMETERS = ["password", "otp_token"]
 
+# Client IP behind reverse proxies (axes, throttles, IP hash all agree on it).
+# 0 = trust no X-Forwarded-For (local dev). Render's load balancer = 1. Production
+# must set it explicitly: too high lets clients spoof their IP, too low makes every
+# visitor share the proxy's IP (one global throttle bucket, lockout DoS).
+TRUSTED_PROXY_COUNT_RAW = os.environ.get("TRUSTED_PROXY_COUNT", "")
+TRUSTED_PROXY_COUNT = int(TRUSTED_PROXY_COUNT_RAW) if TRUSTED_PROXY_COUNT_RAW.isdigit() else 0
+AXES_CLIENT_IP_CALLABLE = "apps.core.security.client_ip"
+
 # --- Sessions, CSRF, cookies (rule 4) -----------------------------------------
 SESSION_COOKIE_HTTPONLY = True
 SESSION_COOKIE_SECURE = True
@@ -211,6 +219,9 @@ REST_FRAMEWORK = {
     "DEFAULT_PARSER_CLASSES": ["apps.core.parsers.SafeJSONParser"],
     "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
     "PAGE_SIZE": 50,
+    # Without this DRF keys throttles on the raw, client-supplied X-Forwarded-For
+    # header (audit v2, H-1). 0 = REMOTE_ADDR only.
+    "NUM_PROXIES": TRUSTED_PROXY_COUNT,
     "DEFAULT_THROTTLE_CLASSES": [
         "rest_framework.throttling.AnonRateThrottle",
         "rest_framework.throttling.UserRateThrottle",

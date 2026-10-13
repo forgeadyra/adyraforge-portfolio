@@ -17,6 +17,7 @@ _GUESSABLE_ADMIN_PATHS = {
     "backend",
     "dashboard",
 }
+MAX_TRUSTED_PROXY_COUNT = 5
 _POSTGRES_SCHEMES = {"postgres", "postgresql", "pgsql", "postgis"}
 MIN_SECRET_KEY_LENGTH = 50
 MIN_SECRET_KEY_UNIQUE_CHARS = 5
@@ -56,6 +57,7 @@ def validate_production_settings(
     email_use_tls: bool,
     email_use_ssl: bool,
     turnstile_secret: str,
+    trusted_proxy_count: str,
 ) -> None:
     """Raise ImproperlyConfigured listing every problem found."""
     errors: list[str] = []
@@ -111,6 +113,12 @@ def validate_production_settings(
         errors.append("TURNSTILE_SECRET_KEY is missing.")
     elif turnstile_secret.startswith(_TURNSTILE_TEST_PREFIXES):
         errors.append("TURNSTILE_SECRET_KEY is a Cloudflare test key.")
+
+    if not trusted_proxy_count.isdigit() or int(trusted_proxy_count) > MAX_TRUSTED_PROXY_COUNT:
+        errors.append(
+            f"TRUSTED_PROXY_COUNT must be set explicitly (0-{MAX_TRUSTED_PROXY_COUNT}); "
+            "Render is 1."
+        )
 
     if errors:
         raise ImproperlyConfigured("Refusing to start in production:\n- " + "\n- ".join(errors))

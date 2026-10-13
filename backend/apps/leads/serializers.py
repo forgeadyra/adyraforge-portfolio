@@ -16,7 +16,9 @@ class BotCheckMixin(serializers.Serializer):
 
     @property
     def is_bot(self) -> bool:
-        return bool(self.initial_data.get("website"))
+        # Non-object bodies (e.g. a JSON array) are not bots; validation rejects them.
+        data = self.initial_data
+        return isinstance(data, dict) and bool(data.get("website"))
 
 
 class ContactSerializer(BotCheckMixin, serializers.ModelSerializer):

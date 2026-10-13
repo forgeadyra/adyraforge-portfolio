@@ -1,3 +1,4 @@
+from collections.abc import Mapping
 from typing import Any
 
 from django.http import HttpRequest
@@ -18,6 +19,8 @@ def lockout_username(request: HttpRequest, credentials: dict[str, Any] | None) -
     sources: list[Any] = [credentials or {}]
     sources.append(getattr(request, "data", None) or request.POST)
     for source in sources:
+        if not isinstance(source, Mapping):  # e.g. a JSON array body
+            continue
         for key in _USERNAME_KEYS:
             value = source.get(key)
             if value:

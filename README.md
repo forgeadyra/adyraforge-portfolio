@@ -111,6 +111,10 @@ Git hooks (gitleaks, ruff, black, eslint, prettier): `pre-commit install`.
 | `DATABASE_URL` | `postgres://…` (Neon). Non-PostgreSQL is rejected in every environment. |
 | `ADMIN_URL` | unguessable, 16+ chars, trailing slash |
 | `CORS_ALLOWED_ORIGINS`, `CSRF_TRUSTED_ORIGINS` | `https://adyraforge.com` (https only, explicit) |
+| `FRONTEND_URL` | `https://adyraforge.com` (used in emailed invite/reset links) |
+| `EMAIL_URL` | a real SMTP server, e.g. `smtp+tls://user:pass@host:587` (console/locmem rejected) |
+| `TURNSTILE_SECRET_KEY` | real Cloudflare Turnstile secret (Cloudflare's test keys rejected) |
+| `SESSION_COOKIE_DOMAIN` | `.adyraforge.com`, so Next middleware on adyraforge.com sees the session cookie |
 | `CACHE_URL` | optional; defaults to `dbcache://django_cache` |
 
 Production refuses to boot (`ImproperlyConfigured`) if any of these is missing or insecure.
@@ -135,7 +139,29 @@ Rules the models enforce:
 - **Uploads.** Content type is detected from magic bytes (never trusted from the client), the extension must match, size is capped (images 5 MB, PDFs 10 MB, client files 25 MB), and files are stored as `<uuid>.<ext>`. SVG and HTML are always rejected. Client files and invoices go to `PRIVATE_MEDIA_ROOT` (outside the web root), and their storage refuses to produce URLs.
 - **Rich text** (blog bodies) is sanitised with nh3 on every save. Messages and case-study text are plain text.
 
-## How auth and CSRF work
+## How auth works
+
+**No public registration.** You create a client (Django admin → Client profiles → Add, or `POST /api/admin/clients/invite/`). The system emails a signed invite link that works once and expires after 72 hours. The client sets a password (Django validators, minimum 12 characters) and signs in.
+
+| Endpoint | Who | Notes |
+| --- | --- | --- |
+| `GET /api/auth/csrf/` | anyone | CSRF token in the body; cookie is HttpOnly |
+| `POST /api/auth/login/` | anyone | throttled 5/min; axes locks email+IP for 30 min after 5 failures (wrong OTP codes count); staff with a device must send `otp_token` |
+| `POST /api/auth/logout/` | signed in | deletes the session server-side |
+| `POST /api/auth/logout-all/` | signed in | bumps `session_version`, invalidating every session on every device |
+| `GET /api/auth/me/` | signed in | own profile only |
+| `POST /api/auth/password/change/` | signed in | keeps this session, signs out all others |
+| `POST /api/auth/password/reset/` | anyone | always the same 202 response; email sent off-thread so timing doesn't leak account existence |
+| `POST /api/auth/password/reset/confirm/` | token | 1 hour, single-use |
+| `POST /api/auth/invite/accept/` | token | 72 hours, single-use |
+| `/api/portal/{projects,messages,files,invoices}/` | clients | `owned_by(request.user)`; another client's id is **404** for every method |
+| `GET /api/portal/{files,invoices}/{id}/download/` | clients | returns a 5-minute signed URL bound to the user |
+| `/api/admin/{leads,clients}/` | OTP-verified staff | staff without OTP get 403 |
+| `POST /api/leads/contact/`, `POST /api/leads/planner/` | anyone | throttled, honeypot, server-side Turnstile |
+
+Sessions: login rotates the session key and CSRF token, and sessions last at most 2 weeks. The portal frontend (`/portal/*`) is guarded by Next middleware calling `/api/auth/me/`, but that's UX only. Every permission is enforced by the API.
+
+### CSRF and cookies
 
 - Django session cookie: HttpOnly, Secure, SameSite=Lax. No JWT, nothing in localStorage (ESLint blocks `localStorage`).
 - The frontend gets a CSRF token from `GET /api/auth/csrf/` (JSON body), keeps it in memory, and sends it as `X-CSRFToken` on every unsafe request (`frontend/src/lib/api.ts`). The CSRF cookie itself is HttpOnly. After login or logout, call `api.resetCsrfToken()`, because Django rotates the token.
@@ -150,7 +176,11 @@ Rules the models enforce:
 
 ## Known follow-ups
 
-- **Private file downloads.** `ProjectFile` and `Invoice.pdf` have no URL yet. The API phase adds an ownership-checked view issuing short-lived signed URLs. Production storage (private S3 bucket or Cloudinary authenticated assets) is still to be chosen.
+- **Turnstile widget on the frontend.** The API verifies tokens, but the contact and planner pages aren't built yet. When they are, the CSP must allow `https://challenges.cloudflare.com` (script and frame).
+- **Admin dashboard frontend.** The OTP-gated `/api/admin/*` endpoints exist; the custom dashboard UI doesn't yet. The Django admin works today.
+- **Revoked sessions linger as rows** until they expire (they can no longer authenticate). Schedule `manage.py clearsessions` daily in production.
+
+- **Private file storage in production.** Downloads already go through ownership-checked, 5-minute signed links (`apps/clients/downloads.py`), served from local private storage. Before launch, choose a private S3 bucket or Cloudinary authenticated assets and swap that module for presigned URLs.
 - **Deleting a `ProjectFile` row leaves the stored file on disk.** Whether deletion should also erase the file, or keep it for records, is a data-retention decision for you.
 - **Budget bands** in `leads.BudgetRange` are placeholders. Adjust them to your real pricing.
 

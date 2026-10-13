@@ -140,6 +140,125 @@ export interface Me {
   role: "admin" | "client";
 }
 
+export interface Page<T> {
+  count: number;
+  next: string | null;
+  previous: string | null;
+  results: T[];
+}
+
+export interface Milestone {
+  id: number;
+  title: string;
+  description: string;
+  due_date: string | null;
+  completed_at: string | null;
+  is_complete: boolean;
+  order: number;
+}
+
+export type ProjectStatus =
+  "planning" | "in_progress" | "review" | "completed" | "on_hold" | "cancelled";
+
+export interface ProjectSummary {
+  id: number;
+  title: string;
+  status: ProjectStatus;
+  progress: number;
+  start_date: string | null;
+  due_date: string | null;
+  updated_at: string;
+}
+
+export interface ProjectDetail extends ProjectSummary {
+  description: string;
+  milestones: Milestone[];
+  created_at: string;
+}
+
+export interface Message {
+  id: number;
+  client_project: number;
+  body: string;
+  sender_name: string;
+  is_mine: boolean;
+  read_at: string | null;
+  created_at: string;
+}
+
+export interface ProjectFile {
+  id: number;
+  client_project: number;
+  original_name: string;
+  description: string;
+  content_type: string;
+  size: number;
+  created_at: string;
+}
+
+export interface Invoice {
+  id: number;
+  client_project: number;
+  number: string;
+  amount: string;
+  currency: "INR" | "USD";
+  status: "sent" | "paid" | "overdue" | "void";
+  issued_on: string | null;
+  due_date: string;
+  paid_at: string | null;
+  has_pdf: boolean;
+}
+
+export interface DownloadLink {
+  url: string;
+  expires_in: number;
+}
+
+export interface LoginBody {
+  email: string;
+  password: string;
+  otp_token?: string;
+}
+
+const byProject = (project?: number) => (project ? `?project=${project}` : "");
+
 export const endpoints = {
   me: (signal?: AbortSignal) => api.get<Me>("/api/auth/me/", signal),
+
+  async login(body: LoginBody): Promise<Me> {
+    const me = await api.post<Me>("/api/auth/login/", body);
+    api.resetCsrfToken(); // Django rotates the CSRF token on login
+    return me;
+  },
+  async logout(): Promise<void> {
+    await api.post("/api/auth/logout/");
+    api.resetCsrfToken();
+  },
+  async logoutAll(): Promise<void> {
+    await api.post("/api/auth/logout-all/");
+    api.resetCsrfToken();
+  },
+  changePassword: (current_password: string, new_password: string) =>
+    api.post<{ detail: string }>("/api/auth/password/change/", { current_password, new_password }),
+  requestPasswordReset: (email: string) =>
+    api.post<{ detail: string }>("/api/auth/password/reset/", { email }),
+  confirmPasswordReset: (uid: string, token: string, new_password: string) =>
+    api.post<{ detail: string }>("/api/auth/password/reset/confirm/", { uid, token, new_password }),
+  acceptInvite: (token: string, new_password: string) =>
+    api.post<{ detail: string }>("/api/auth/invite/accept/", { token, new_password }),
+
+  projects: () => api.get<Page<ProjectSummary>>("/api/portal/projects/"),
+  project: (id: number) => api.get<ProjectDetail>(`/api/portal/projects/${id}/`),
+  messages: (projectId: number) =>
+    api.get<Page<Message>>(`/api/portal/projects/${projectId}/messages/`),
+  sendMessage: (projectId: number, body: string) =>
+    api.post<Message>(`/api/portal/projects/${projectId}/messages/`, { body }),
+  markRead: (messageId: number) =>
+    api.patch<Message>(`/api/portal/messages/${messageId}/`, { read: true }),
+  files: (project?: number) =>
+    api.get<Page<ProjectFile>>(`/api/portal/files/${byProject(project)}`),
+  fileDownload: (id: number) => api.get<DownloadLink>(`/api/portal/files/${id}/download/`),
+  invoices: (project?: number) =>
+    api.get<Page<Invoice>>(`/api/portal/invoices/${byProject(project)}`),
+  invoiceDownload: (id: number) => api.get<DownloadLink>(`/api/portal/invoices/${id}/download/`),
 };

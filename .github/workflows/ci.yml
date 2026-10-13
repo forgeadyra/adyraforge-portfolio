@@ -80,6 +80,8 @@ jobs:
           EMAIL_HOST_PASSWORD: ci-placeholder-not-a-real-password
           TURNSTILE_SECRET_KEY: ci-placeholder-not-a-real-turnstile-secret
           TRUSTED_PROXY_COUNT: "1"
+          # check --deploy does not connect; production insists on SSL in the URL.
+          DATABASE_URL: postgres://ci:ci@localhost:5432/ci?sslmode=require
         run: |
           export SECRET_KEY="$(python -c 'from django.core.management.utils import get_random_secret_key as k; print(k())')"
           python manage.py check --deploy --fail-level WARNING

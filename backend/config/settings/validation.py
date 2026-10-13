@@ -4,7 +4,7 @@ Kept free of Django settings imports so it can be unit-tested directly.
 Error messages name the setting, never its value.
 """
 
-from urllib.parse import urlparse
+from urllib.parse import parse_qs, urlparse
 
 from django.core.exceptions import ImproperlyConfigured
 
@@ -18,6 +18,7 @@ _GUESSABLE_ADMIN_PATHS = {
     "dashboard",
 }
 MAX_TRUSTED_PROXY_COUNT = 5
+_SSL_MODES = {"require", "verify-ca", "verify-full"}
 _POSTGRES_SCHEMES = {"postgres", "postgresql", "pgsql", "postgis"}
 MIN_SECRET_KEY_LENGTH = 50
 MIN_SECRET_KEY_UNIQUE_CHARS = 5
@@ -75,6 +76,8 @@ def validate_production_settings(
         errors.append("DATABASE_URL is missing.")
     elif urlparse(database_url).scheme not in _POSTGRES_SCHEMES:
         errors.append("DATABASE_URL must be a PostgreSQL URL.")
+    elif not set(parse_qs(urlparse(database_url).query).get("sslmode", [])) & _SSL_MODES:
+        errors.append("DATABASE_URL must set sslmode=require (or verify-ca / verify-full).")
 
     if debug:
         errors.append("DEBUG must be False in production.")

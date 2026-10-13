@@ -76,3 +76,10 @@ def test_host_validation_still_applies_everywhere_else(client: Client) -> None:
     assert client.get("/api/auth/csrf/", HTTP_HOST="10.0.0.5:8000", secure=True).status_code == 400
     assert client.get("/healthz/x", HTTP_HOST="10.0.0.5:8000", secure=True).status_code == 400
     assert client.post("/healthz/", HTTP_HOST="10.0.0.5:8000", secure=True).status_code == 400
+
+
+@pytest.mark.parametrize("path", ["/api/health", "/api/health/"])
+def test_uptime_monitor_health_path(client: Client, path: str) -> None:
+    resp = client.get(path, secure=True)
+    assert resp.status_code == 200
+    assert resp.json() == {"status": "ok"}

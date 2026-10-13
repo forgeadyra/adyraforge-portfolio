@@ -227,6 +227,8 @@ REST_FRAMEWORK = {
         "invite_accept": env("THROTTLE_INVITE_ACCEPT", default="10/hour"),
         "contact": env("THROTTLE_CONTACT", default="5/hour"),
         "planner": env("THROTTLE_PLANNER", default="10/hour"),
+        # Public read-only content (the Next server revalidates from one IP).
+        "public": env("THROTTLE_PUBLIC", default="300/min"),
     },
 }
 
@@ -243,6 +245,8 @@ SERVER_EMAIL = DEFAULT_FROM_EMAIL
 EMAIL_SEND_ASYNC = env.bool("EMAIL_SEND_ASYNC", default=True)
 # Read raw (may start with "$"). Cloudflare's public test keys work in development.
 TURNSTILE_SECRET_KEY = os.environ.get("TURNSTILE_SECRET_KEY", "")
+# Public reply-time promise for the proof bar. Unset = not shown.
+RESPONSE_TIME_HOURS = env.int("RESPONSE_TIME_HOURS", default=None)
 
 # --- i18n / static ------------------------------------------------------------
 LANGUAGE_CODE = "en-us"
@@ -253,7 +257,9 @@ USE_TZ = True
 STATIC_URL = "static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
 # Public media (project covers, gallery). Production: Cloudinary.
-MEDIA_URL = "media/"
+# Absolute in deployed setups (Cloudinary/S3, or http://localhost:8000/media/ in dev),
+# because the browser and the Next server both consume these URLs.
+MEDIA_URL = env("MEDIA_URL", default="/media/")
 MEDIA_ROOT = env.path("MEDIA_ROOT", default=str(BASE_DIR / "media"))
 # Client files and invoices: never under MEDIA_ROOT, never given a public URL.
 PRIVATE_MEDIA_ROOT = env.path("PRIVATE_MEDIA_ROOT", default=str(BASE_DIR / "private_media"))

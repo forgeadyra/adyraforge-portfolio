@@ -12,6 +12,7 @@ from rest_framework.throttling import AnonRateThrottle, ScopedRateThrottle
 from rest_framework.views import APIView
 
 from apps.core.security import request_ip_hash
+from apps.recommender.services import services_for
 
 from .models import Lead, PlannerSubmission
 from .serializers import UTM_FIELDS, ContactSerializer, PlannerSerializer
@@ -92,4 +93,15 @@ class PlannerView(_PublicFormView):
                 )
             submission.lead = lead
             submission.save()
-        return Response({"id": submission.pk, "detail": THANKS}, status=status.HTTP_201_CREATED)
+            recommended = services_for(submission.project_type, submission.features)
+            submission.recommended_services.set(recommended)
+        return Response(
+            {
+                "id": submission.pk,
+                "detail": THANKS,
+                "recommended_services": [
+                    {"name": s.name, "slug": s.slug, "summary": s.summary} for s in recommended
+                ],
+            },
+            status=status.HTTP_201_CREATED,
+        )

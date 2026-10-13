@@ -8,3 +8,5 @@ ruff
 black
 pip-audit
 pip-tools
+bandit
+deptry

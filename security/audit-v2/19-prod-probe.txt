@@ -1,4 +1,4 @@
-$ python prod_probe.py   (REAL prod image at 7e7a15c; af-prod = adyraforge_app over TLS, TRUSTED_PROXY_COUNT=1; af-prod-nodb = database unreachable; ADMIN_URL=<random, redacted>)
+$ python prod_probe.py   (REAL prod image incl. Netlify-proxy settings; af-prod = adyraforge_app over TLS, TRUSTED_PROXY_COUNT=1, NETLIFY_PROXY_SIGNING_SECRET set; direct-path requests; ADMIN_URL=<random, redacted>)
 == transport & headers ==
 [PASS] plain http is redirected to https (SECURE_SSL_REDIRECT)  ->  301 https://api.adyraforge.test/api/public/projects/
 GET /api/public/projects/ -> 200
@@ -6,7 +6,7 @@ GET /api/public/projects/ -> 200
     X-Content-Type-Options: nosniff
     X-Frame-Options: DENY
     Referrer-Policy: strict-origin-when-cross-origin
-    Content-Security-Policy: object-src 'none'; img-src 'self' data:; script-src 'self'; default-src 'none'; form-action 'self'; connect-src 'self'; font-src 'self'; style-src 'self'; frame-ancestors 'none'; base-uri 'none'
+    Content-Security-Policy: connect-src 'self'; base-uri 'none'; font-src 'self'; style-src 'self'; script-src 'self'; frame-ancestors 'none'; form-action 'self'; default-src 'none'; img-src 'self' data:; object-src 'none'
     Permissions-Policy: accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=(), interest-cohort=()
     Cross-Origin-Opener-Policy: same-origin
     Server: gunicorn
@@ -14,7 +14,7 @@ GET /api/public/projects/ -> 200
 [PASS] HSTS 1 year + includeSubDomains + preload  ->  max-age=31536000; includeSubDomains; preload
 [PASS] X-Frame-Options DENY
 [PASS] nosniff
-[PASS] CSP present with default-src 'none'  ->  object-src 'none'; img-src 'self' data:; script-src 'self'; default-src 'none'; form-action 'self'; connect-src 'self'; font-src 'self'; style-src 'self'; frame-ancestors 'none'; base-uri 'none'
+[PASS] CSP present with default-src 'none'  ->  connect-src 'self'; base-uri 'none'; font-src 'self'; style-src 'self'; script-src 'self'; frame-ancestors 'none'; form-action 'self'; default-src 'none'; img-src 'self' data:; object-src 'none'
 [PASS] Permissions-Policy present
 [PASS] no version in Server header  ->  gunicorn
 
@@ -57,9 +57,9 @@ NODB GET /healthz/ -> 200 '{"status": "ok"}'
 [PASS] NODB /healthz/: no stack trace / internals in body  ->  200 '{"status": "ok"}'
 
 == session cookies, rotation, logout ==
-    Set-Cookie csrftoken: csrftoken=<redacted>; expires=Wed, 13 Oct 2027 06:12:26 GMT; HttpOnly; Max-Age=31449600; Path=/; SameSite=Lax; Secure
+    Set-Cookie csrftoken: csrftoken=<redacted>; expires=Wed, 13 Oct 2027 08:39:56 GMT; HttpOnly; Max-Age=31449600; Path=/; SameSite=Lax; Secure
 [PASS] login 200  ->  200
-    Set-Cookie sessionid: sessionid=<redacted>; expires=Wed, 28 Oct 2026 06:12:27 GMT; HttpOnly; Max-Age=1209600; Path=/; SameSite=Lax; Secure
+    Set-Cookie sessionid: sessionid=<redacted>; expires=Wed, 28 Oct 2026 08:39:56 GMT; HttpOnly; Max-Age=1209600; Path=/; SameSite=Lax; Secure
 [PASS] session cookie Secure
 [PASS] session cookie HttpOnly
 [PASS] session cookie SameSite=Lax

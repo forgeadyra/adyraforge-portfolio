@@ -247,12 +247,49 @@ Next.js App Router injects inline bootstrap scripts. A nonce-based CSP forces ev
 1. **Cloudflare R2 itself, and Render's blueprint parser.** The bucket behaviour was proven on a real S3-compatible server (SeaweedFS), with the production `S3Storage` options, not on R2 or AWS. MinIO, the usual choice, no longer publishes free images: both registries refused the pull. DEPLOY.md §1b has the one-line anonymous-access check to run on the real bucket. Also, `render.yaml` parses as valid YAML with the intended services, cron and env group, but Render's own validation (including `sync: false` inside `envVarGroups`) only happens in the Blueprint preview.
 2. **Neon role behaviour, and Sentry delivery.** The least-privilege role scheme was rehearsed on Postgres 16 ([`23`](security/audit-v2/23-least-privilege-db.txt), and end to end on the prod image in [`24`](security/audit-v2/24-prod-image-rehearsal.txt)), not on Neon itself. It assumes that roles created with SQL do not join `neon_superuser`; the verification `SELECT` in `deploy/neon_app_role.sql` checks this on the real database. Event delivery to Sentry is untested until DSNs exist (DEPLOY.md §5 has the test).
 3. **The real Render proxy.** `TRUSTED_PROXY_COUNT=1` assumes Render's load balancer appends exactly one `X-Forwarded-For` entry and strips nothing else. That's tested with simulated headers, not against Render. **After the first deploy:** send two requests with a forged `X-Forwarded-For` from one machine. The contact throttle must count them together, and `Lead.ip_hash` must match for both.
-4. **The securityheaders.com / SSL Labs grade.** v2 isn't public yet, so I captured the same headers locally with curl. Re-run both scanners against `adyraforge.com` and `api.adyraforge.com` after deploy, including the TLS config and the HSTS preload submission.
+4. **The securityheaders.com / SSL Labs grade.** v2 isn't public yet, so I captured the same headers locally with curl. Re-run both scanners against `adyraforge.netlify.app` after deploy.
 5. **Netlify-served headers and files.** The frontend headers come from `next.config.ts`. On Netlify, the Next.js runtime should apply them, but I haven't checked that on a deployed site. Also unchecked: that build internals under `.next/` are not publicly reachable (`prerender-manifest.json` and `middleware-manifest.json` hold Next's preview-mode signing keys). DEPLOY.md §4 has the curl checks for both.
 6. **Real Turnstile and SMTP.** Both are mocked or use test keys locally. The first real contact submission and invite email after deploy is the test.
-7. **Cookie scope across `adyraforge.com` ↔ `api.adyraforge.com`.** This depends on `SESSION_COOKIE_DOMAIN` and real DNS. Verify the portal login on the deployed domains.
+7. **Cookies, CSRF and client IPs through Netlify's proxy.** Tested in Django with Netlify's documented signature format (`tests/test_netlify_proxy.py`), not against Netlify itself. Three things are unverified until the first deploy:
+   - that Netlify passes `Set-Cookie` through unchanged;
+   - that the signature's `site_url` equals `https://adyraforge.netlify.app` exactly;
+   - that Netlify overwrites a client-forged `X-Nf-Client-Connection-Ip`. Netlify documents keeping the header for proxies but not overwriting it.
+
+   `security/scripts/prod_smoke.sh` checks all three on the live site.
 8. **Admin pages in a real browser.** The XSS check of Django admin pages was server-side HTML only. Admin output is autoescaped by Django templates.
 9. **Load and DoS** beyond per-IP throttles were not tested. The dependency scans are point-in-time.
+
+## Launch topology (2026-10-14): free tier, no custom domain
+
+Production is `https://adyraforge.netlify.app` only. The browser talks to that origin alone, and `/api/*` is proxied to the Render origin.
+
+- **Same-origin API, first-party cookies.**
+  - The browser client calls relative `/api/...`.
+  - Cookies are host-only (no `Domain`), `Secure`, `HttpOnly` and `SameSite=Lax`.
+  - CSRF trusts exactly `https://adyraforge.netlify.app`.
+  - The CSP no longer names any API origin (`connect-src 'self'`). Media comes from `https://*.backblazeb2.com`, the one provider-wide source, so `netlify.toml` stays domain-free.
+  - Proven in `tests/test_netlify_proxy.py::test_login_and_csrf_work_with_the_netlify_origin`: login and CSRF work with that Origin; an evil Origin or a missing token gets 403; cookie flags are checked.
+- **Client IP across two proxies.**
+  - Netlify doesn't document what it puts in `X-Forwarded-For` for proxy origins; the one client-IP header it commits to forwarding is `X-Nf-Client-Connection-Ip`. Render's guidance is to read `X-Forwarded-For` with one trusted hop. Sources:
+    - [Netlify rewrites and proxies](https://docs.netlify.com/manage/routing/redirects/rewrites-proxies/)
+    - [Netlify header changes](https://answers.netlify.com/t/upcoming-change-stripping-exposed-netlify-headers-from-function-and-proxy-requests/52665)
+    - [Render on DDoS and client IPs](https://render.com/articles/how-render-handles-ddos-attacks)
+  - The Render origin is publicly reachable. A fixed `TRUSTED_PROXY_COUNT=2` would therefore let anyone calling Render directly choose their IP.
+  - The design: `TRUSTED_PROXY_COUNT=1` (Render) for the direct path. Netlify's header is used **only** on requests carrying a valid Netlify **signed-proxy** JWS (`x-nf-sign`, HS256 with `NETLIFY_PROXY_SIGNING_SECRET`, `iss=netlify`, unexpired, `site_url` equal to `FRONTEND_URL`).
+  - Every DRF throttle now uses that one `client_ip()`, because stock DRF throttles can only count a fixed number of proxies. A test fails if a stock throttle is used anywhere.
+  - Tests cover:
+    - two real clients behind Netlify, with independent throttles and lockouts;
+    - a rotating spoofed `X-Forwarded-For` through Netlify;
+    - a forged `X-Nf-Client-Connection-Ip` sent straight to Render;
+    - every bad-signature variant: missing, garbage, wrong secret, expired, wrong issuer, another site, `alg: none`.
+  - Production refuses to boot without a 32+ character signing secret.
+- **L-6 (fixed before it shipped): download links would have broken behind the proxy.** They were absolute URLs naming the API's own host, where the browser holds no cookie. They're now same-origin paths. The ownership checks are unchanged.
+- **Turnstile hostname.** In production a passed challenge must report `adyraforge.netlify.app`, so a token solved on another site is rejected.
+- **Free-tier operations without paid features.**
+  - Render free has no pre-deploy command or cron. Migrations (as the DB owner) and the daily `clearsessions` (as the app role) run in GitHub Actions, using GitHub encrypted secrets only and pinned actions.
+  - They use a `maintenance` settings module that allows no hosts and routes no URLs, so it can't accidentally serve the site. It needs only an SSL database URL.
+  - The database owner credentials never live on Render.
+- **Cold starts.** The build waits up to about 90 s for a sleeping API (retrying network errors and 502/503/504) but still fails on a 404 or an empty project list. UptimeRobot keeps the instance awake, because Netlify's proxy times out after 26 s.
 
 ## Phase 8 hardening (added with the deploy work)
 

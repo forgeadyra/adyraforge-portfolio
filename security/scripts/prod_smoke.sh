@@ -1,12 +1,17 @@
 #!/usr/bin/env bash
 # Phase 7 header + smoke checks against the DEPLOYED sites. curl only.
-#   bash security/scripts/prod_smoke.sh                 # adyraforge.com + api.adyraforge.com
-#   FRONT=https://x.netlify.app API=https://y.onrender.com bash security/scripts/prod_smoke.sh
-# Read-only, except 4 password-reset POSTs for an address that does not exist (no email
-# is sent). Those use up this machine's IP budget for that endpoint for one hour.
+#   bash security/scripts/prod_smoke.sh
+#   FRONT=https://x.netlify.app RENDER=https://y.onrender.com bash security/scripts/prod_smoke.sh
+# Topology: the browser only talks to FRONT; FRONT proxies /api/* (signed) to RENDER.
+# API checks therefore run through FRONT/api; RENDER is probed directly only to make
+# sure it adds nothing a browser should rely on (admin hidden, forged IPs ignored).
+# Read-only apart from honeypot form posts (nothing is stored) and password-reset
+# POSTs for an address that does not exist (no email is sent). They use up this
+# machine's per-IP budget on those endpoints for an hour.
 set -u
-FRONT="${FRONT:-https://adyraforge.com}"
-API="${API:-https://api.adyraforge.com}"
+FRONT="${FRONT:-https://adyraforge.netlify.app}"
+RENDER="${RENDER:-https://adyraforge-api.onrender.com}"
+API="$FRONT"
 ORIGIN="${ORIGIN:-$FRONT}"
 fails=0
 
@@ -17,18 +22,14 @@ code() { curl -s -o /dev/null -w '%{http_code}' --max-time 20 "$@"; }
 hdrs() { curl -sS -D - -o /dev/null --max-time 20 "$@" | tr -d '\r'; }
 has() { grep -qiF -- "$2" <<<"$1"; echo $?; }
 
-echo "== $(date -u +%Y-%m-%dT%H:%MZ)  FRONT=$FRONT  API=$API"
+echo "== $(date -u +%Y-%m-%dT%H:%MZ)  FRONT=$FRONT (API via $FRONT/api)  RENDER=$RENDER"
 
 echo; echo "== HTTPS everywhere"
-for host in "$FRONT" "$API"; do
+for host in "$FRONT" "$RENDER"; do
   plain="http://${host#*://}/"
   loc=$(curl -s -o /dev/null -w '%{http_code} %{redirect_url}' --max-time 20 "$plain")
   [[ "$loc" =~ ^30[1278]\ https:// ]]; check "$plain redirects to https" $? "$loc"
 done
-if [ "$FRONT" = "https://adyraforge.com" ]; then
-  loc=$(curl -s -o /dev/null -w '%{http_code} %{redirect_url}' --max-time 20 https://www.adyraforge.com/work)
-  [[ "$loc" == "301 https://adyraforge.com/work" ]]; check "www redirects to apex" $? "$loc"
-fi
 
 echo; echo "== Frontend security headers ($FRONT/)"
 h=$(hdrs "$FRONT/"); echo "$h" | grep -iE "^(content-security-policy|strict-transport|x-frame|x-content-type|referrer-policy|permissions-policy|cross-origin-opener|x-powered-by|server):" | sed 's/^/    /'
@@ -60,7 +61,7 @@ for p in /CLAUDE.md /SECURITY_AUDIT_V1.md /SECURITY_AUDIT_V2.md /README.md /dock
   c=$(code "$FRONT$p"); [ "$c" = 404 ]; check "GET $p -> 404" $? "$c"
 done
 
-echo; echo "== API security headers ($API/api/public/projects/)"
+echo; echo "== API security headers through the proxy ($API/api/public/projects/)"
 h=$(hdrs "$API/api/public/projects/"); echo "$h" | grep -iE "^(content-security-policy|strict-transport|x-frame|x-content-type|referrer-policy|permissions-policy|cross-origin-opener|x-powered-by|server):" | sed 's/^/    /'
 [[ "$(head -1 <<<"$h")" =~ \ 200 ]]; check "API 200" $? "$(head -1 <<<"$h")"
 check "CSP default-src 'none'" "$(has "$h" "default-src 'none'")"
@@ -72,9 +73,10 @@ grep -qiE "^server:.*[0-9]" <<<"$h"; [ $? -ne 0 ]; check "no version in Server h
 
 echo; echo "== API health, admin, errors"
 b=$(curl -s --max-time 20 "$API/api/health"); [ "$b" = '{"status": "ok"}' ]; check "GET /api/health" $? "$b"
-c=$(code "$API/healthz/"); [ "$c" = 200 ]; check "GET /healthz/ 200" $? "$c"
-for p in /admin/ /admin/login/ /django-admin/ /robots.txt; do
-  c=$(code "$API$p"); [ "$c" = 404 ]; check "GET $p -> 404" $? "$c"
+c=$(code "$RENDER/healthz/"); [ "$c" = 200 ]; check "Render GET /healthz/ 200 (platform health check)" $? "$c"
+for p in /admin/ /admin/login/ /django-admin/; do
+  c=$(code "$RENDER$p"); [ "$c" = 404 ]; check "Render GET $p -> 404" $? "$c"
+  c=$(code "$FRONT$p"); [ "$c" = 404 ]; check "Site GET $p -> 404 (admin is never proxied)" $? "$c"
 done
 b=$(curl -s --max-time 20 "$API/api/does-not-exist/"); [ "$b" = '{"detail": "Not found."}' ]; check "unknown API path: generic JSON 404" $? "$b"
 b=$(curl -s --max-time 20 -X POST "$API/api/auth/login/" -H 'Content-Type: application/json' --data-binary "$(printf '[%.0s' $(seq 1 5000))$(printf ']%.0s' $(seq 1 5000))")
@@ -91,14 +93,29 @@ echo "    $cookie"
 check "csrftoken cookie Secure" "$(has "$cookie" "; Secure")"
 check "csrftoken cookie SameSite=Lax" "$(has "$cookie" "SameSite=Lax")"
 check "csrftoken cookie HttpOnly" "$(has "$cookie" "HttpOnly")"
+grep -qi "domain=" <<<"$cookie"; [ $? -ne 0 ]; check "csrftoken cookie is host-only (first-party to $FRONT)" $?
 
-echo; echo "== Rate limit holds behind Render's proxy (H-1): rotating X-Forwarded-For"
+echo; echo "== Client IP behind Netlify + Render (H-1): forged headers never reset a limit"
 codes=""
 for i in 1 2 3 4; do
-  codes="$codes $(code -X POST "$API/api/auth/password/reset/" -H 'Content-Type: application/json' \
+  codes="$codes $(code -X POST "$FRONT/api/auth/password/reset/" -H 'Content-Type: application/json' \
     -H "X-Forwarded-For: 198.51.100.$((RANDOM % 250 + 1))" -d '{"email":"nobody@example.invalid"}')"
 done
-[[ "$codes" =~ 429$ ]]; check "4th password-reset request -> 429 despite forged X-Forwarded-For" $? "$codes"
+[[ "$codes" =~ 429$ ]]; check "via site, rotating X-Forwarded-For: 4th password reset -> 429" $? "$codes"
+BOT='{"name":"n","email":"n@example.invalid","project_type":"other","message":"m","website":"http://spam.example","turnstile_token":"t"}'
+codes=""
+for i in 1 2 3 4 5 6; do
+  codes="$codes $(code -X POST "$FRONT/api/leads/contact/" -H 'Content-Type: application/json' \
+    -H "X-Nf-Client-Connection-Ip: 192.0.2.$i" -d "$BOT")"
+done
+[[ "$codes" =~ 429$ ]]; check "via site, forged X-Nf-Client-Connection-Ip: 6th contact -> 429 (Netlify overwrites it)" $? "$codes"
+codes=""
+for i in $(seq 1 11); do
+  codes="$codes $(code -X POST "$RENDER/api/leads/planner/" -H 'Content-Type: application/json' \
+    -H "X-Nf-Client-Connection-Ip: 192.0.2.$i" -H "X-Forwarded-For: 203.0.113.$i" \
+    -d '{"project_type":"web_app","website":"http://spam.example","turnstile_token":"t"}')"
+done
+[[ "$codes" =~ 429$ ]]; check "direct to Render, forged Netlify + XFF headers: 11th planner -> 429" $? "$codes"
 
 echo; echo "== Sentry tunnel accepts only our project"
 c=$(code -X POST "$FRONT/monitoring" -H 'Content-Type: text/plain' \

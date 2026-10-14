@@ -1,71 +1,22 @@
-# Render Blueprint for the AdyraForge API (backend/). See DEPLOY.md.
-# Placeholders only. Every `sync: false` value is entered once in the Render dashboard
-# (env group "adyraforge-prod"), never committed. Production refuses to boot if any
-# required value is missing or weak, and the log names the variable, never its value.
-
-envVarGroups:
-  - name: adyraforge-prod
-    envVars:
-      - key: DJANGO_ENV
-        value: production
-      - key: TRUSTED_PROXY_COUNT
-        value: "1" # Render's load balancer appends one X-Forwarded-For entry
-      - key: ALLOWED_HOSTS
-        value: api.adyraforge.com
-      - key: CORS_ALLOWED_ORIGINS
-        value: https://adyraforge.com
-      - key: CSRF_TRUSTED_ORIGINS
-        value: https://adyraforge.com
-      - key: FRONTEND_URL
-        value: https://adyraforge.com
-      - key: SESSION_COOKIE_DOMAIN
-        value: .adyraforge.com
-      - key: EMAIL_PORT
-        value: "587"
-      - key: EMAIL_USE_TLS
-        value: "True"
-      - key: MEDIA_URL
-        value: https://media.adyraforge.com/ # public media bucket's custom domain
-      - key: STORAGE_REGION
-        value: auto # Cloudflare R2; an AWS region (e.g. ap-south-1) for S3
-      # --- secrets and per-account values: set in the dashboard -----------------
-      - key: SECRET_KEY # 50+ chars; see DEPLOY.md (Render's generateValue is too short)
-        sync: false
-      - key: ADMIN_URL # unguessable, 16+ chars, trailing slash
-        sync: false
-      - key: DATABASE_URL # Neon direct URL for adyraforge_app, ?sslmode=require
-        sync: false
-      - key: MIGRATION_DATABASE_URL # Neon direct URL for the DB owner, ?sslmode=require
-        sync: false
-      - key: TURNSTILE_SECRET_KEY
-        sync: false
-      - key: EMAIL_HOST
-        sync: false
-      - key: EMAIL_HOST_USER
-        sync: false
-      - key: EMAIL_HOST_PASSWORD
-        sync: false
-      - key: DEFAULT_FROM_EMAIL
-        sync: false
-      - key: LEAD_NOTIFY_EMAIL
-        sync: false
-      - key: STORAGE_ENDPOINT_URL # R2: https://<account-id>.r2.cloudflarestorage.com
-        sync: false
-      - key: STORAGE_ACCESS_KEY_ID # bucket-scoped token, not an account-wide key
-        sync: false
-      - key: STORAGE_SECRET_ACCESS_KEY
-        sync: false
-      - key: PRIVATE_BUCKET # client files + invoices; NO public access
-        sync: false
-      - key: MEDIA_BUCKET # public images, served via MEDIA_URL
-        sync: false
-      - key: SENTRY_DSN # optional; errors only, data collection off
-        sync: false
-
+# Render Blueprint for the AdyraForge API (backend/), FREE instance. See DEPLOY.md.
+# Placeholders only: every `sync: false` value is entered in the Render dashboard,
+# never committed. Production refuses to boot if any required value is missing or
+# weak, and the log names the variable, never its value.
+#
+# The browser never calls this service directly: adyraforge.netlify.app proxies
+# /api/* here (signed). Server-side (Next build/ISR/middleware) calls it directly.
+#
+# Free-tier differences, handled outside Render:
+# - No pre-deploy command: migrations run from GitHub Actions
+#   (.github/workflows/deploy-backend.yml), which then triggers this service's deploy
+#   hook. The database OWNER credentials therefore never live on Render.
+# - No cron: expired sessions are purged daily by .github/workflows/maintenance.yml.
+# - Spins down after 15 idle minutes (~1 min cold start): UptimeRobot pings /api/health.
 services:
   - type: web
     name: adyraforge-api
     runtime: docker
+    plan: free
     # Repo root is the build context: the backend imports /ml as a package.
     dockerfilePath: ./backend/Dockerfile
     dockerContext: .
@@ -73,31 +24,70 @@ services:
     # non-root user. Its CMD runs collectstatic (whitenoise) and then
     #   gunicorn config.wsgi:application --bind 0.0.0.0:$PORT --workers $WEB_CONCURRENCY
     region: singapore # next to Neon ap-southeast-1; change both together
-    plan: starter
     healthCheckPath: /api/health # answered before Host validation; no DB access
-    # Release command: schema changes run as the database OWNER (MIGRATION_DATABASE_URL);
-    # the running app uses the least-privilege adyraforge_app role (DATABASE_URL), which
-    # cannot create, alter or drop tables. Unset MIGRATION_DATABASE_URL fails the deploy.
-    preDeployCommand: >-
-      sh -c 'DATABASE_URL="$MIGRATION_DATABASE_URL" python manage.py migrate --noinput
-      && DATABASE_URL="$MIGRATION_DATABASE_URL" python manage.py createcachetable'
-    autoDeploy: false # deploy deliberately while v2 is new
+    autoDeploy: false # deploys come from the deploy hook, after migrations
     envVars:
-      - fromGroup: adyraforge-prod
+      - key: DJANGO_ENV
+        value: production
       - key: WEB_CONCURRENCY
         value: "2"
-
-  # Daily purge of expired sessions (revoked ones can no longer authenticate, but the
-  # rows linger until removed). Runs as the app role: DELETE on rows is all it needs.
-  - type: cron
-    name: adyraforge-clearsessions
-    runtime: docker
-    dockerfilePath: ./backend/Dockerfile
-    dockerContext: .
-    region: singapore
-    plan: starter
-    schedule: "30 3 * * *" # 03:30 UTC daily
-    dockerCommand: python manage.py clearsessions
-    autoDeploy: false
-    envVars:
-      - fromGroup: adyraforge-prod
+      # Requests reach Django through Render's load balancer (1 trusted hop). The
+      # Netlify hop is verified by signature instead of counted (settings/base.py).
+      - key: TRUSTED_PROXY_COUNT
+        value: "1"
+      # Only this service's own host. If Render assigns a different *.onrender.com
+      # name, change it here, in netlify.toml and in Netlify's API_INTERNAL_URL.
+      - key: ALLOWED_HOSTS
+        value: adyraforge-api.onrender.com
+      # The site is the only browser origin (first-party cookies via the proxy).
+      # Moving to a custom domain later = changing these three values.
+      - key: FRONTEND_URL
+        value: https://adyraforge.netlify.app
+      - key: CORS_ALLOWED_ORIGINS
+        value: https://adyraforge.netlify.app
+      - key: CSRF_TRUSTED_ORIGINS
+        value: https://adyraforge.netlify.app
+      # Gmail SMTP with an app password (DEPLOY.md). Gmail rewrites any From that
+      # isn't the signed-in account, so the sender is the account itself.
+      - key: EMAIL_HOST
+        value: smtp.gmail.com
+      - key: EMAIL_PORT
+        value: "587"
+      - key: EMAIL_USE_TLS
+        value: "True"
+      - key: EMAIL_HOST_USER
+        value: forgeadyra@gmail.com
+      - key: DEFAULT_FROM_EMAIL
+        value: AdyraForge <forgeadyra@gmail.com>
+      - key: LEAD_NOTIFY_EMAIL
+        value: forgeadyra@gmail.com
+      # Backblaze B2 (S3-compatible). Region and endpoint come from the bucket page.
+      - key: STORAGE_REGION
+        value: us-west-004 # EXAMPLE: replace with your bucket's region
+      - key: STORAGE_ENDPOINT_URL
+        value: https://s3.us-west-004.backblazeb2.com # EXAMPLE: s3.<region>.backblazeb2.com
+      - key: PRIVATE_BUCKET
+        sync: false # e.g. adyraforge-private (Private bucket)
+      - key: MEDIA_BUCKET
+        sync: false # e.g. adyraforge-media (Public bucket)
+      - key: MEDIA_URL
+        sync: false # https://<MEDIA_BUCKET>.s3.<region>.backblazeb2.com/
+      # --- secrets: set in the dashboard -----------------------------------------
+      - key: SECRET_KEY # 50+ chars; see DEPLOY.md (Render's generateValue is too short)
+        sync: false
+      - key: ADMIN_URL # unguessable, 16+ chars, trailing slash
+        sync: false
+      - key: DATABASE_URL # Neon pooled-off URL for adyraforge_app, ?sslmode=require
+        sync: false
+      - key: NETLIFY_PROXY_SIGNING_SECRET # same value as the Netlify env var
+        sync: false
+      - key: EMAIL_HOST_PASSWORD # the Gmail app password (16 letters)
+        sync: false
+      - key: TURNSTILE_SECRET_KEY
+        sync: false
+      - key: STORAGE_ACCESS_KEY_ID # B2 application key ID (scoped to the two buckets)
+        sync: false
+      - key: STORAGE_SECRET_ACCESS_KEY # B2 application key
+        sync: false
+      - key: SENTRY_DSN # optional
+        sync: false

@@ -1,212 +1,269 @@
-# Deploying AdyraForge v2
+# Deploying AdyraForge v2 (free tier, no custom domain)
 
-The API runs on Render (Docker, gunicorn, whitenoise) at `api.adyraforge.com`, the database on Neon, and the frontend on Netlify at `adyraforge.com`.
+Production is **https://adyraforge.netlify.app**, and nothing else is browser-facing.
 
-**You enter every secret yourself, in the Render / Netlify / Neon dashboards. Never in git, never in chat.** Everything below is a placeholder.
+```
+browser ──► adyraforge.netlify.app ──(/api/*, signed proxy)──► adyraforge-api.onrender.com ──► Neon (TLS)
+                 │  pages: Next.js on Netlify                         Django + gunicorn (free)
+                 └─ build / ISR / middleware call the Render URL directly (API_INTERNAL_URL)
+media: Backblaze B2 (public bucket for images, private bucket for client files)
+```
 
-## 0. Before you start
+**You enter every secret yourself, in the dashboards. Never in git, never in chat.** Values in angle brackets are placeholders. Dashboard labels drift over time; if a menu name differs slightly, look for the nearest equivalent.
 
-| Blocker | Why | Status |
+Accounts you need (all free, no card): **Neon**, **Backblaze B2**, **Render**, **Netlify** (exists), **Cloudflare** (for Turnstile), a **Google account** with 2-Step Verification (Gmail), **UptimeRobot**, and **GitHub** (exists).
+
+## 0. Order of work
+
+1. Generate the three shared secrets (§1).
+2. Neon (§2), then Backblaze B2 (§3), Gmail (§4) and Turnstile (§5).
+3. The first migration and admin user, run from your machine (§6).
+4. Render (§7). The API must be live **before** the v2 PR merges: Netlify's build reads content from it and fails, by design, if it can't.
+5. GitHub secrets (§8), then Netlify env vars (§9).
+6. Merge the v2 PR (#2). Netlify builds `main` and the site goes live.
+7. UptimeRobot (§10), then the smoke checks (§11).
+
+## 1. Generate the shared secrets (on your machine)
+
+```bash
+python -c "import secrets; print(secrets.token_urlsafe(64))"
+```
+→ **SECRET_KEY** (Render only).
+
+```bash
+python -c "import secrets; print('ops-' + secrets.token_urlsafe(18) + '/')"
+```
+→ **ADMIN_URL** (Render only). Keep it in your password manager. It must never appear in robots.txt, the frontend or docs.
+
+```bash
+python -c "import secrets; print(secrets.token_urlsafe(48))"
+```
+→ **NETLIFY_PROXY_SIGNING_SECRET**. Use the **same value** in Render *and* Netlify. Netlify signs every proxied `/api` request with it, and Django only believes Netlify's client-IP header when the signature checks out.
+
+## 2. Neon (PostgreSQL)
+
+1. https://console.neon.tech → **New Project**. Name `adyraforge`, Postgres **16**, region **AWS Asia Pacific (Singapore)** (next to Render's `singapore`). Database name: `neondb`.
+2. **Dashboard → Connect.** Pick role `neondb_owner` and turn **Connection pooling OFF** (direct host, not `-pooler`). Copy the URL. It already ends in `?sslmode=require`, which production insists on. This is the **owner URL**.
+3. **SQL Editor**, connected as `neondb_owner`. Paste [`deploy/neon_app_role.sql`](deploy/neon_app_role.sql), replace `REPLACE-IN-EDITOR-ONLY` with a strong new password, and **Run**. Don't save that password anywhere but your password manager. The last result row must show only `f`.
+   - This creates `adyraforge_app`, which can read and write rows but can't create, alter, drop or truncate tables, or create roles.
+   - Create it with SQL, as here; roles created in the console join `neon_superuser`.
+4. **Connect** again, this time with role `adyraforge_app` and pooling **OFF**. This is the **app URL**. Use the password you just set.
+5. **Backups.** Neon keeps point-in-time history automatically. Check **Settings → Storage** (or *History retention*) for your plan's window; the free plan's window is short. For longer retention, take the monthly off-site dump in §13.
+
+Where each URL goes:
+
+| URL | Goes to | Used for |
 |---|---|---|
-| **Live repo exposure** (M-4) | `adyraforge.netlify.app` serves `CLAUDE.md`, settings source, etc. from `main` today | This repo's `netlify.toml` (base `frontend`) fixes it at cutover. `fix/netlify-publish-v1-only` fixes it sooner. Both need a push to `main`, which needs your OK |
+| owner URL | GitHub secret `NEON_OWNER_DATABASE_URL`, and §6 on your machine | migrations only |
+| app URL | Render `DATABASE_URL`, and GitHub secret `NEON_APP_DATABASE_URL` | the running API; the daily `clearsessions` |
 
-Order: **Neon → storage buckets → Render → DNS for `api.` → Netlify → DNS for apex → Sentry / UptimeRobot → smoke checks.** The frontend build fetches content from the live API, so the API must be up first.
+## 3. Backblaze B2 (storage, no card needed)
 
-## 1. Neon (PostgreSQL)
+1. https://www.backblaze.com/sign-up/cloud-storage → create the account and verify your email.
+2. **B2 Cloud Storage → Buckets → Create a Bucket.** Do this twice:
+   - `adyraforge-private` (names are global: add a suffix if taken). **Files in Bucket: Private.** Default encryption: Enable.
+   - `adyraforge-media`. **Files in Bucket: Public.** If B2 asks you to verify something before allowing a public bucket, do it.
+3. On each bucket card, note the **Endpoint**, e.g. `s3.us-west-004.backblazeb2.com`. The region is the part after `s3.`, here `us-west-004`.
+4. For **each** bucket: **Lifecycle Settings → Keep only the last version of the file.** B2 keeps every version by default, so deleted files would still count against the 10 GB.
+5. **Application Keys → Add a New Application Key.** Name `adyraforge-render`, **Allow access to Bucket(s): All**, **Type of Access: Read and Write**. Copy the **keyID** and the **applicationKey**; the key is shown once.
+   - B2 can scope a key to one bucket or to all buckets, and the API needs both. So keep this B2 account for these two buckets only.
+6. Values for Render:
 
-1. **Create the project** in AWS `ap-southeast-1` (Singapore), next to the Render region in `render.yaml`. Postgres 16. Database name: `neondb` (default) or your choice.
-2. **SSL is mandatory.** Neon only accepts TLS. The app also refuses to boot in production unless `DATABASE_URL` has `sslmode=require` (or `verify-ca` / `verify-full`). Use the **direct** connection string, not the `-pooler` host: Django keeps connections open (`CONN_MAX_AGE=60`), which doesn't work with PgBouncer transaction pooling.
-3. **Two roles.**
-   - The **owner** role (Neon's default, e.g. `neondb_owner`) runs migrations only. Its URL becomes `MIGRATION_DATABASE_URL`, read only by the release command.
-   - The **app** role `adyraforge_app` is created by [`deploy/neon_app_role.sql`](deploy/neon_app_role.sql). It can read and write rows, and cannot create, alter, drop or truncate tables or create roles. Its URL becomes `DATABASE_URL`.
+   | Render variable | Value |
+   |---|---|
+   | `PRIVATE_BUCKET` / `MEDIA_BUCKET` | your two bucket names |
+   | `STORAGE_ENDPOINT_URL` | `https://s3.<region>.backblazeb2.com` |
+   | `STORAGE_REGION` | `<region>`, e.g. `us-west-004` |
+   | `STORAGE_ACCESS_KEY_ID` / `STORAGE_SECRET_ACCESS_KEY` | the keyID / the applicationKey |
+   | `MEDIA_URL` | `https://<MEDIA_BUCKET>.s3.<region>.backblazeb2.com/` |
 
-   Open the Neon **SQL Editor** (connected as the owner), paste the file, replace `REPLACE-IN-EDITOR-ONLY` with a strong password, and run it. Create this role with SQL, not in the console: console-created roles join `neon_superuser`. The final `SELECT` must show only `f`.
+   And for Netlify: `NEXT_PUBLIC_MEDIA_URL` = the same origin, without the trailing slash.
+7. Check that the private bucket really is private. In a browser, open `https://adyraforge-private.s3.<region>.backblazeb2.com/x`. It must answer with an error (AccessDenied or NoSuchKey), never a listing.
 
-   This exact scheme was rehearsed on Postgres 16 ([`security/audit-v2/23-least-privilege-db.txt`](security/audit-v2/23-least-privilege-db.txt)): owner migrations succeed; the app role does CRUD, cache and sessions; and `CREATE TABLE`, `DROP`, `ALTER`, `TRUNCATE` and `CREATE ROLE` are all refused.
-4. **Backups.** Neon keeps point-in-time history automatically. In **Settings → Storage → History retention**, set the longest your plan allows (7 days on Launch). For anything older, see "Off-site dump" in §9.
+## 4. Gmail app password (outgoing mail)
 
-## 1b. Storage buckets (Cloudflare R2, or AWS S3)
+1. https://myaccount.google.com/security → **2-Step Verification** must be **On**.
+2. https://myaccount.google.com/apppasswords → App name `AdyraForge Render` → **Create**. Copy the 16-letter password (spaces don't matter).
+3. That's Render's `EMAIL_HOST_PASSWORD`. The rest is already in `render.yaml`:
+   - host `smtp.gmail.com`, port 587, TLS;
+   - user and sender `forgeadyra@gmail.com`;
+   - lead alerts to `forgeadyra@gmail.com`.
 
-Uploads never touch the container disk (Render wipes it on every deploy). Production refuses to boot without both buckets.
+   Revoke the app password from the same page if it ever leaks.
 
-| Bucket | Holds | Access |
-|---|---|---|
-| `adyraforge-private` (`PRIVATE_BUCKET`) | client files, invoices | **No public access at all.** The API releases a file only after the per-user signed link and ownership check pass, as a 302 to a presigned URL valid for **60 s** that forces a download |
-| `adyraforge-media` (`MEDIA_BUCKET`) | public images (re-encoded, metadata stripped) | Public read through the custom domain `media.adyraforge.com` (`MEDIA_URL`) |
+## 5. Cloudflare Turnstile (bot check on contact and planner)
 
-**Cloudflare R2** (recommended: S3-compatible, no egress fees, native custom domain):
-1. R2 → *Create bucket* twice: `adyraforge-private` and `adyraforge-media`, location near Singapore (APAC).
-2. On `adyraforge-media` only: *Settings → Custom Domains → Connect* `media.adyraforge.com`. Leave *Public access* off on `adyraforge-private` (the default), and never enable its r2.dev URL.
-3. *Manage R2 API tokens → Create API token*: **Object Read & Write**, **scoped to these two buckets only**. Put the Access Key ID / Secret in Render as `STORAGE_ACCESS_KEY_ID` / `STORAGE_SECRET_ACCESS_KEY`, and the S3 endpoint `https://<account-id>.r2.cloudflarestorage.com` as `STORAGE_ENDPOINT_URL`. `STORAGE_REGION=auto` is preset.
-4. Check: opening `https://<account-id>.r2.cloudflarestorage.com/adyraforge-private/<any key>` without a signature must return an error (no listing, no object).
+1. https://dash.cloudflare.com → **Turnstile → Add widget**. No domain on Cloudflare is needed.
+2. Widget name `AdyraForge`. **Hostname: `adyraforge.netlify.app`.** Widget mode **Managed** → **Create**.
+3. **Site key** → Netlify `NEXT_PUBLIC_TURNSTILE_SITE_KEY` (public). **Secret key** → Render `TURNSTILE_SECRET_KEY`.
+   - The API also checks that each passed challenge reports hostname `adyraforge.netlify.app` (taken from `FRONTEND_URL`).
 
-**AWS S3** instead: two buckets with *Block all public access* on the private one, CloudFront (or a public-read policy) for the media one, an IAM user limited to `s3:GetObject/PutObject/DeleteObject` on both, leave `STORAGE_ENDPOINT_URL` empty and set `STORAGE_REGION` to the bucket region.
+## 6. First migration and admin user (on your machine, once)
 
-## 2. Render (API)
+Render's free instance has no shell. Before the v2 PR merges, the migration workflow can't be run from GitHub either: it only appears in Actions once it's on `main`. So run these from the repo, with Docker up. The URLs are only ever typed into your own terminal.
 
-1. **New → Blueprint** → this repo → it reads [`render.yaml`](render.yaml). This creates the env group `adyraforge-prod` (enter each secret once), the `adyraforge-api` Docker web service (Starter, needed for the release command) and the `adyraforge-clearsessions` cron job (daily 03:30 UTC, `manage.py clearsessions`).
-   - Build: `backend/Dockerfile`, last stage `prod`. Hash-pinned dependencies, read-only code, non-root user.
-   - Start: `collectstatic` (whitenoise serves static files), then `gunicorn config.wsgi --workers $WEB_CONCURRENCY`.
-   - **Release command** (`preDeployCommand`): `migrate` then `createcachetable`, as the owner. A failed migration aborts the deploy, and the old version keeps serving.
-   - **Health check:** `/api/health` (answered before Host validation, no DB).
-   - `autoDeploy: false`: you deploy deliberately.
-2. **Environment variables** (env group `adyraforge-prod`). Already set by `render.yaml` (no action):
+```bash
+docker compose run --rm -e DJANGO_ENV=maintenance -e DATABASE_URL="<owner URL>" -e SECRET_KEY="<any 50+ random chars>" backend sh -c "python manage.py migrate --noinput && python manage.py createcachetable"
+```
+
+```bash
+docker compose run --rm -e DJANGO_ENV=maintenance -e DATABASE_URL="<app URL>" -e SECRET_KEY="<any 50+ random chars>" backend python manage.py createsuperuser
+```
+
+Then add your TOTP device the same way: the README's "Admin account and 2FA" command, using the `DJANGO_ENV=maintenance` / app-URL prefix shown above.
+
+The `maintenance` settings need only the database URL and a throwaway key. They serve nothing: no allowed hosts, no URLs.
+
+## 7. Render (API, free instance)
+
+1. https://dashboard.render.com → **New → Blueprint** → connect GitHub → repo `forgeadyra/adyraforge-portfolio`.
+   - **Branch: `v2/foundation`** for the launch. Switch it to `main` after the merge (§12).
+2. Render reads [`render.yaml`](render.yaml) and shows **adyraforge-api (Free)**. Fill in every empty (`sync: false`) value:
 
    | Variable | Value |
    |---|---|
-   | `DJANGO_ENV` | `production` |
-   | `TRUSTED_PROXY_COUNT` | `1` (Render's proxy; see SECURITY_AUDIT_V2 H-1) |
-   | `ALLOWED_HOSTS` | `api.adyraforge.com` |
-   | `CORS_ALLOWED_ORIGINS`, `CSRF_TRUSTED_ORIGINS`, `FRONTEND_URL` | `https://adyraforge.com` |
-   | `SESSION_COOKIE_DOMAIN` | `.adyraforge.com` |
-   | `EMAIL_PORT` / `EMAIL_USE_TLS` | `587` / `True` |
-   | `WEB_CONCURRENCY` | `2` (web service only) |
-   | `MEDIA_URL` | `https://media.adyraforge.com/` |
-   | `STORAGE_REGION` | `auto` (R2) |
+   | `SECRET_KEY`, `ADMIN_URL`, `NETLIFY_PROXY_SIGNING_SECRET` | from §1 |
+   | `DATABASE_URL` | the Neon **app URL** (§2.4) |
+   | `EMAIL_HOST_PASSWORD` | the Gmail app password (§4) |
+   | `TURNSTILE_SECRET_KEY` | the Turnstile secret key (§5) |
+   | `PRIVATE_BUCKET`, `MEDIA_BUCKET`, `MEDIA_URL`, `STORAGE_ACCESS_KEY_ID`, `STORAGE_SECRET_ACCESS_KEY` | from §3 |
+   | `SENTRY_DSN` | optional (§14) |
 
-   **You enter these** in the dashboard:
+   Also **edit** the two B2 example values in `render.yaml`, `STORAGE_REGION` and `STORAGE_ENDPOINT_URL`, to your bucket's region.
 
-   | Variable | What to put | How to get it |
-   |---|---|---|
-   | `SECRET_KEY` | 86 random chars | `python -c "import secrets; print(secrets.token_urlsafe(64))"`. Render's "Generate" value is too short for the boot check |
-   | `ADMIN_URL` | e.g. `ops-<random>/` | `python -c "import secrets; print('ops-' + secrets.token_urlsafe(18) + '/')"`. Keep it in your password manager |
-   | `DATABASE_URL` | `postgresql://adyraforge_app:<pw>@<ep-…>.ap-southeast-1.aws.neon.tech/neondb?sslmode=require` | Neon → Connection details, role `adyraforge_app`, **direct** host |
-   | `MIGRATION_DATABASE_URL` | same, with the owner role | Neon → Connection details, owner role |
-   | `TURNSTILE_SECRET_KEY` | Turnstile secret key | Cloudflare → Turnstile → your widget (hostnames: `adyraforge.com`) |
-   | `EMAIL_HOST` | `smtp.zoho.in` or `smtp.zoho.com` (your Zoho region) | Zoho Mail → SMTP settings |
-   | `EMAIL_HOST_USER` | the mailbox address | |
-   | `EMAIL_HOST_PASSWORD` | a Zoho **app-specific** password | Zoho → Security → App passwords |
-   | `DEFAULT_FROM_EMAIL` | `AdyraForge <hello@adyraforge.com>` | |
-   | `LEAD_NOTIFY_EMAIL` | where new-lead alerts go | |
-   | `SENTRY_DSN` | the Django project's DSN | §5 (optional, recommended) |
-   | `STORAGE_ENDPOINT_URL` | `https://<account-id>.r2.cloudflarestorage.com` | §1b (empty for AWS) |
-   | `STORAGE_ACCESS_KEY_ID` / `STORAGE_SECRET_ACCESS_KEY` | bucket-scoped R2 token | §1b |
-   | `PRIVATE_BUCKET` / `MEDIA_BUCKET` | `adyraforge-private` / `adyraforge-media` | §1b |
+   Preset in `render.yaml`, no action needed:
+   - `DJANGO_ENV=production`
+   - `TRUSTED_PROXY_COUNT=1`
+   - `ALLOWED_HOSTS=adyraforge-api.onrender.com`
+   - `FRONTEND_URL`, `CORS_ALLOWED_ORIGINS` and `CSRF_TRUSTED_ORIGINS` = `https://adyraforge.netlify.app`
+   - the Gmail SMTP host, port, TLS, user and sender
+   - `LEAD_NOTIFY_EMAIL`, `WEB_CONCURRENCY=2`
 
-   A missing or weak required value stops the boot with `ImproperlyConfigured`. The log names the variable, never its value.
+   Leave **`SESSION_COOKIE_DOMAIN` unset**: cookies are host-only on `adyraforge.netlify.app`.
+3. **Apply.** The first deploy builds the Docker image; the log must show `pip install --require-hashes` succeeding.
+   - A missing or weak value stops the boot with `ImproperlyConfigured: Refusing to start in production`, naming the variable (never its value). Fix it, then **Manual Deploy**.
+4. Note the service URL at the top of the service page.
+   - **If it isn't exactly `https://adyraforge-api.onrender.com`** (the name was taken), change it in three places: Render `ALLOWED_HOSTS`, the `to =` line of the `/api/*` rule in `netlify.toml`, and Netlify's `API_INTERNAL_URL`.
+5. Check `https://adyraforge-api.onrender.com/api/health` → `{"status": "ok"}`. The first request after idle takes about a minute: the free instance was asleep.
+6. **Settings → Deploy Hook** → copy the URL. It's a secret; it goes to GitHub in §8.
 
-   **Required by the boot check for storage:** `PRIVATE_BUCKET`, `MEDIA_BUCKET` (must differ), `STORAGE_ACCESS_KEY_ID`, `STORAGE_SECRET_ACCESS_KEY` and `MEDIA_URL` (an `https://` origin). CI's `check --deploy` step sets obviously fake values for all five, and `backend/tests/test_ci_workflow.py` fails if CI ever misses a variable the boot check requires.
-3. **Deploy.** The build log must show `pip install --require-hashes` succeeding; the release log shows the migrations.
-4. **Render Shell:**
-   ```bash
-   python manage.py check --deploy --fail-level WARNING
-   ```
-   ```bash
-   python manage.py createsuperuser
-   ```
-   Then add your TOTP device (README → "Admin account and 2FA"). The admin is only at `https://api.adyraforge.com/<ADMIN_URL>`.
-5. **Settings → Custom Domains:** add `api.adyraforge.com`, create the DNS record from §4, and wait for the certificate.
-6. The `adyraforge-clearsessions` cron purges expired sessions daily. Check its first run in *Logs*.
+## 8. GitHub (secrets for the Actions)
 
-## 3. Netlify (frontend)
+Repo → **Settings → Secrets and variables → Actions → New repository secret**:
 
-1. Point the site at this repo. [`netlify.toml`](netlify.toml) sets base directory `frontend`, `npm run build`, publish `.next` and Node 22, so **only `frontend/` is ever served**. It also sets:
-   - the security headers + CSP for every path, kept identical to `next.config.ts` by `frontend/src/lib/netlify-headers.test.ts`;
-   - the `www` → apex redirect.
-2. **Environment variables** (Site configuration → Environment). All public, none secret:
+| Secret | Value | Used by |
+|---|---|---|
+| `NEON_OWNER_DATABASE_URL` | Neon owner URL | `deploy-backend.yml`: `migrate` + `createcachetable`, then the deploy hook |
+| `NEON_APP_DATABASE_URL` | Neon app URL | `maintenance.yml`: daily `clearsessions` (03:30 UTC) |
+| `RENDER_DEPLOY_HOOK_URL` | Render deploy hook | `deploy-backend.yml` |
+
+Also: **Settings → Code security → Dependabot alerts** and **Dependabot security updates** → Enable. (`.github/dependabot.yml` already opens weekly update PRs.)
+
+## 9. Netlify (frontend)
+
+1. https://app.netlify.com → site **adyraforge** → **Site configuration → Build & deploy**. The production branch is `main`. [`netlify.toml`](netlify.toml) sets everything else:
+   - base `frontend`, publish `.next`, Node 22;
+   - the Next.js runtime;
+   - the signed `/api/*` proxy;
+   - the security headers.
+2. **Site configuration → Environment variables → Add a variable.** Scopes: **All**; contexts: **All**. Mark the secret one as *Contains secret values*.
 
    | Variable | Value |
    |---|---|
-   | `NEXT_PUBLIC_API_URL` | `https://api.adyraforge.com` (already in `netlify.toml`) |
-   | `NEXT_PUBLIC_SITE_URL` | `https://adyraforge.com` (already in `netlify.toml`) |
-   | `NEXT_PUBLIC_TURNSTILE_SITE_KEY` | Turnstile **site** key |
-   | `NEXT_PUBLIC_SENTRY_DSN` | the Next.js project's DSN (§5). A DSN identifies a project; it is not a secret |
+   | `API_INTERNAL_URL` | `https://adyraforge-api.onrender.com` (the Render URL from §7.4) |
+   | `NEXT_PUBLIC_SITE_URL` | `https://adyraforge.netlify.app` |
+   | `NEXT_PUBLIC_MEDIA_URL` | `https://<MEDIA_BUCKET>.s3.<region>.backblazeb2.com` |
+   | `NEXT_PUBLIC_TURNSTILE_SITE_KEY` | Turnstile site key (§5) |
+   | `NETLIFY_PROXY_SIGNING_SECRET` | same value as on Render (§1). **Its scopes must include Runtime**, or the proxy can't sign |
+   | `NEXT_PUBLIC_SENTRY_DSN` | optional (§14) |
 
-3. Deploy, then **Domain management:** add `adyraforge.com` (primary) and `www.adyraforge.com`. Use **HTTPS → Verify DNS / Provision certificate**. Netlify forces HTTPS once the certificate exists.
-4. `NEXT_PUBLIC_MEDIA_URL=https://media.adyraforge.com` is set in `netlify.toml`, and that origin is in the CSP `img-src` and `next/image` remote patterns.
+3. HTTPS is automatic on `*.netlify.app`.
+4. Deploy previews of PR #2 also build against the API. Public pages work there, but **logging in only works on `adyraforge.netlify.app`**: the API trusts that one origin for CSRF and signatures.
 
-## 4. DNS
+## 10. UptimeRobot (keeps the free API awake and tells you when it's down)
 
-At your registrar, or move the zone to Netlify DNS:
+https://uptimerobot.com → **Add New Monitor**:
 
-| Host | Type | Value | Notes |
+| Type | Friendly name | URL | Interval |
 |---|---|---|---|
-| `adyraforge.com` | `A` | `75.2.60.5` (Netlify load balancer) | Or ALIAS/ANAME to `<site>.netlify.app` if supported |
-| `www` | `CNAME` | `<site>.netlify.app` | Redirected to apex by `netlify.toml` |
-| `api` | `CNAME` | `adyraforge-api.onrender.com` (exact host from Render) | Render issues the certificate |
-| `media` | (set by R2) | added automatically when you connect the custom domain in R2 (zone on Cloudflare) | public images only |
-| `adyraforge.com` | `CAA` | `0 issue "letsencrypt.org"` | Optional. Both Netlify and Render use Let's Encrypt |
+| HTTP(s) | AdyraForge site | `https://adyraforge.netlify.app/` | 5 min |
+| Keyword (exists: `ok`) | AdyraForge API | `https://adyraforge.netlify.app/api/health` | 5 min |
 
-**Force HTTPS:**
-- Netlify: automatic once the certificate is issued.
-- Render: redirects http → https.
-- Django: `SECURE_SSL_REDIRECT` + HSTS (1 year, subdomains, preload).
+The API monitor goes through Netlify's proxy to Render. Pinging every 5 minutes keeps the free instance from sleeping, which takes 15 idle minutes. That matters because **Netlify's proxy gives up after 26 seconds** and a cold start takes about 60, so the first browser call after a sleep would fail.
 
-Submit to hstspreload.org only after a week of everything working on HTTPS. Preload is hard to undo.
+A free instance awake around the clock uses about 744 of Render's 750 free hours per month, so keep it the only free Render service in the workspace. Add your email as the alert contact.
 
-## 5. Sentry (both apps)
-
-1. Create two projects: **django** (`adyraforge-api`) and **nextjs** (`adyraforge-web`). Put the DSNs in Render `SENTRY_DSN` and Netlify `NEXT_PUBLIC_SENTRY_DSN`.
-2. What the code already does (tested):
-   - **Backend** (`apps/core/monitoring.py`): errors only. `data_collection` turns *every* category off: user, cookies, headers, bodies, query params, stack-frame variables (they can hold passwords). `scrub_event` then strips cookies, bodies, IPs, auth/CSRF headers, query strings and signed-download tokens.
-   - **Frontend:**
-     - The browser SDK is loaded lazily after first paint (0 bytes added to initial JS) and sends through the same-origin `/monitoring` tunnel, which only forwards to *your* project.
-     - The Node server reports request errors. The edge middleware stays Sentry-free.
-     - Same all-off `dataCollection`, plus scrubbing of invite/reset/download tokens from URLs and breadcrumbs.
-3. In **each Sentry project → Settings → Security & Privacy**, turn on *Data Scrubber*, *Use Default Scrubbers* and *Prevent Storing of IP Addresses*. Belt and braces.
-4. Test: from the Render shell,
-   ```bash
-   python manage.py shell -c "import sentry_sdk; sentry_sdk.capture_message('deploy test'); sentry_sdk.flush()"
-   ```
-   It should appear in Sentry with no user, IP or cookies.
-
-## 6. UptimeRobot
-
-| Monitor | Type | URL | Check |
-|---|---|---|---|
-| Site | HTTPS | `https://adyraforge.com/` | status 200 |
-| API | Keyword | `https://api.adyraforge.com/api/health` | keyword `"ok"` present |
-
-5-minute interval, alert contact = your email. `/api/health` returns `{"status": "ok"}` without touching the database, so it measures the app, not Neon. Neon's own status page covers the database.
-
-## 7. Dependabot
-
-[`.github/dependabot.yml`](.github/dependabot.yml) opens weekly (Monday) PRs for pip (`backend/`, regenerating the hashed `requirements/*.txt`), npm (`frontend/`) and GitHub Actions. Also enable **Settings → Code security → Dependabot alerts + security updates** in the repo. Merge only green PRs: CI runs pytest, `check --deploy`, pip-audit, npm audit and the build.
-
-## 8. Smoke checks against production
+## 11. Smoke checks against production
 
 ```bash
 bash security/scripts/prod_smoke.sh
 ```
 
-This checks:
-- HTTPS redirects and www → apex.
-- Every security header on both domains.
-- That the frontend serves no repo or build-internal files (`CLAUDE.md`, settings, `.env`, Next manifests that hold preview keys, source maps).
-- Page renders, `/api/health`, `/admin/` → 404, generic JSON errors, deep-JSON → 400, CORS allowlist, cookie flags.
-- The proxy rate-limit check: forged `X-Forwarded-For` must not reset the limit.
-- That the Sentry tunnel refuses foreign projects.
+It checks:
+- HTTPS and every security header on the site and through `/api`;
+- that no repo or build-internal file is served;
+- `/admin/` → 404 on both the site and Render;
+- generic JSON errors and deep-JSON → 400;
+- CORS and host-only cookies;
+- that forged client-IP headers never reset a rate limit, whether sent through Netlify or straight to Render;
+- that the Sentry tunnel refuses foreign projects.
 
 It exits non-zero on any failure.
 
-Then by hand: securityheaders.com and SSL Labs on both domains; one real portal login (cookie `Domain=.adyraforge.com; Secure; HttpOnly; SameSite=Lax`); one real contact submission (Turnstile passes, the lead appears in admin, the email arrives); Lighthouse mobile on `/` (LCP < 2.5 s).
+Then by hand:
+- securityheaders.com and SSL Labs on `adyraforge.netlify.app`;
+- a portal login: the cookie must be host-only, `Secure; HttpOnly; SameSite=Lax`;
+- one real contact submission: Turnstile passes, the lead appears in the admin at `https://adyraforge-api.onrender.com/<ADMIN_URL>`, and the email arrives;
+- a file download: it must redirect to a `…backblazeb2.com` URL that expires;
+- Lighthouse mobile on `/`.
 
-## 9. Backups and the restore drill
+## 12. Launch, merge, and after
 
-**What protects the data:**
-- Neon point-in-time restore within the history window (§1.4).
-- Optionally, an **off-site dump**: a monthly `pg_dump --format=custom` with the owner URL, encrypted (e.g. `age`) before it leaves your machine and stored privately. It contains client personal data, so never commit it (rule: no db dumps in git).
+1. Render is live (§7), §11's API checks pass against the Render URL, and PR #2's Netlify deploy preview builds. **Then** merge PR #2.
+2. Netlify builds `main` and publishes v2. This replaces the `legacy/` stopgap.
+3. `deploy-backend.yml` runs on the merge: it migrates, then triggers Render.
+   - In Render, switch the Blueprint/service branch to **`main`**. Keep **Auto-Deploy off**: deploys come from the hook, after migrations.
+4. **Actions → Maintenance → Run workflow** once by hand, to see `clearsessions` succeed.
 
-**Restore drill** (quarterly, and before any risky migration). Goal: prove you can get data back, and measure how long it takes.
+**Moving to a custom domain later is env-only:**
+- Render: `FRONTEND_URL`, `CORS_ALLOWED_ORIGINS`, `CSRF_TRUSTED_ORIGINS`.
+- Netlify: `NEXT_PUBLIC_SITE_URL`.
+- The Turnstile widget hostname.
 
-1. Neon → **Branches → Create branch** → *From a point in time*: pick a timestamp ~1 hour ago.
-2. Copy the branch's **direct** connection string (owner role) for the drill only. Use it locally, never in Render:
+## 13. Backups and the restore drill
+
+- **Neon point-in-time restore** within the history window (§2.5).
+- **Off-site dump** (optional, monthly):
+  ```bash
+  pg_dump --format=custom "<owner URL>" > adyraforge.dump
+  ```
+  Encrypt it (e.g. `age`) before it leaves your machine and store it privately. It contains client personal data: never commit it.
+
+**Restore drill** (quarterly, and before any risky migration):
+1. Neon → **Branches → Create branch** → *From a point in time*, about an hour ago.
+2. Copy that branch's **direct** owner URL, and use it locally only:
    ```bash
-   docker compose run --rm -e DJANGO_ENV=development -e DATABASE_URL="<branch-url>?sslmode=require" backend python manage.py showmigrations --plan
+   docker compose run --rm -e DJANGO_ENV=maintenance -e DATABASE_URL="<branch URL>" -e SECRET_KEY="<any 50+ chars>" backend python manage.py showmigrations --plan
    ```
    ```bash
-   docker compose run --rm -e DJANGO_ENV=development -e DATABASE_URL="<branch-url>?sslmode=require" backend python manage.py shell -c "from apps.leads.models import Lead; from apps.clients.models import ClientProject, Invoice; print(Lead.objects.count(), ClientProject.objects.count(), Invoice.objects.count())"
+   docker compose run --rm -e DJANGO_ENV=maintenance -e DATABASE_URL="<branch URL>" -e SECRET_KEY="<any 50+ chars>" backend python manage.py shell -c "from apps.leads.models import Lead; from apps.clients.models import ClientProject, Invoice; print(Lead.objects.count(), ClientProject.objects.count(), Invoice.objects.count())"
    ```
-3. Compare the counts with production (Django admin) and spot-check one recent lead and invoice.
-4. **To actually restore:** run the release command against the branch with `MIGRATION_DATABASE_URL`, set it as the primary branch in Neon (or point Render's two DB URLs at it), and redeploy.
-5. **Delete the drill branch.** Record the drill:
+3. Compare the counts with production (Django admin), and spot-check one recent lead and invoice.
+4. **To actually restore:** make the branch primary in Neon, or point Render's `DATABASE_URL` and the two GitHub secrets at it, then redeploy.
+5. Delete the drill branch and record the drill:
 
 | Date | Restored to | Time to usable data (RTO) | Data age (RPO) | Result / notes |
 |---|---|---|---|---|
 | _first drill after launch_ | | | | |
 
-## 10. Rollback
+## 14. Sentry (optional)
 
-- **API:** Render → Deploys → previous deploy → *Rollback*. Migrations so far are additive; check before rolling back past one.
-- **Frontend:** Netlify → Deploys → previous deploy → *Publish deploy*.
-- **Database:** §9 restore to a branch, then swap the URLs.
+Create two projects, **django** and **nextjs**. Put the DSNs in Render `SENTRY_DSN` and Netlify `NEXT_PUBLIC_SENTRY_DSN`.
+- All data collection is off in code, plus scrubbers (`apps/core/monitoring.py`, `frontend/src/lib/sentry-scrub.ts`).
+- In each project's **Settings → Security & Privacy**, also enable *Data Scrubber*, *Use Default Scrubbers* and *Prevent Storing of IP Addresses*.
+
+## 15. Rollback
+
+- **API:** Render → **Deploys** → a previous deploy → **Rollback**. Migrations so far are additive.
+- **Frontend:** Netlify → **Deploys** → a previous deploy → **Publish deploy**.
+- **Database:** §13 restore to a branch, then swap the URLs.

@@ -8,7 +8,7 @@ from apps.core.monitoring import init_sentry, scrub_event
 def event() -> dict:
     return {
         "request": {
-            "url": "https://api.adyraforge.com/api/files/eyJzaWduZWQ.token/",
+            "url": "https://adyraforge.netlify.app/api/files/eyJzaWduZWQ.token/",
             "query_string": "token=abc&next=/portal",
             "cookies": {"sessionid": "s3cr3t", "csrftoken": "c"},
             "data": {"email": "a@example.com", "password": "hunter2hunter2"},

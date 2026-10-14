@@ -30,8 +30,14 @@ _KINDS: dict[str, tuple[Any, str]] = {"file": (ProjectFile, "file"), "invoice": 
 
 
 def download_url(request: Request, kind: str, obj: Any) -> str:
+    """A same-origin PATH, never an absolute URL.
+
+    The browser reaches the API through the frontend's /api proxy (first-party
+    cookies). An absolute URL built here would name the API's own host, where the
+    browser holds no session cookie, so the download would always be refused.
+    """
     token = signing.dumps({"k": kind, "i": obj.pk, "u": request.user.pk}, salt=_SALT)
-    return request.build_absolute_uri(reverse("signed-download", args=[token]))
+    return reverse("signed-download", args=[token])
 
 
 def _safe_filename(name: str) -> str:

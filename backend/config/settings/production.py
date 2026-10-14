@@ -1,4 +1,5 @@
 import os
+from urllib.parse import urlparse
 
 from .base import *  # noqa: F403
 from .base import (
@@ -14,7 +15,9 @@ from .base import (
     EMAIL_USE_SSL,
     EMAIL_USE_TLS,
     FRONTEND_URL,
+    LEAD_NOTIFY_EMAIL,
     MEDIA_URL,
+    NETLIFY_PROXY_SIGNING_SECRET,
     PRIVATE_URL_EXPIRE,
     SECRET_KEY,
     TRUSTED_PROXY_COUNT_RAW,
@@ -27,6 +30,9 @@ DEBUG = False
 # Render/Railway terminate TLS and set X-Forwarded-Proto; they strip any
 # client-supplied copy, so it is safe to trust here and only here.
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+
+# A passed Turnstile challenge must come from our own site.
+TURNSTILE_EXPECTED_HOSTNAME = urlparse(FRONTEND_URL).hostname or ""
 
 # Uploads live in S3-compatible buckets (Cloudflare R2 or AWS S3), never on the
 # container disk, which Render wipes on every deploy. Credentials are read raw (a
@@ -92,6 +98,9 @@ validate_production_settings(
     media_url=MEDIA_URL,
     storage_access_key_id=STORAGE_ACCESS_KEY_ID,
     storage_secret_access_key=STORAGE_SECRET_ACCESS_KEY,
+    netlify_proxy_signing_secret=NETLIFY_PROXY_SIGNING_SECRET,
+    default_from_email=os.environ.get("DEFAULT_FROM_EMAIL", ""),
+    lead_notify_email=LEAD_NOTIFY_EMAIL,
 )
 
 # Error monitoring (off unless SENTRY_DSN is set; scrubbed, see apps/core/monitoring.py).

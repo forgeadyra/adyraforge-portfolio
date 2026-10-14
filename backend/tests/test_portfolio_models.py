@@ -123,8 +123,8 @@ def test_rich_text_is_sanitized(dirty: str, forbidden: str) -> None:
 
 
 def test_safe_links_keep_href_and_get_rel() -> None:
-    out = sanitize_rich_text('<a href="https://adyraforge.com">x</a>')
-    assert 'href="https://adyraforge.com"' in out
+    out = sanitize_rich_text('<a href="https://adyraforge.netlify.app">x</a>')
+    assert 'href="https://adyraforge.netlify.app"' in out
     assert "noopener" in out
 
 

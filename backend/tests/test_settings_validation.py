@@ -17,13 +17,13 @@ GOOD_KEY = get_random_secret_key()
 def good_settings(**overrides: Any) -> dict[str, Any]:
     values: dict[str, Any] = {
         "secret_key": GOOD_KEY,
-        "allowed_hosts": ["api.adyraforge.com"],
+        "allowed_hosts": ["adyraforge-api.onrender.com"],
         "database_url": "postgres://u:p@db.example:5432/app?sslmode=require",
         "debug": False,
         "admin_url": "forge-console-7f3a9c2e1b/",
-        "cors_allowed_origins": ["https://adyraforge.com"],
-        "csrf_trusted_origins": ["https://adyraforge.com"],
-        "frontend_url": "https://adyraforge.com",
+        "cors_allowed_origins": ["https://adyraforge.netlify.app"],
+        "csrf_trusted_origins": ["https://adyraforge.netlify.app"],
+        "frontend_url": "https://adyraforge.netlify.app",
         "email_backend": "django.core.mail.backends.smtp.EmailBackend",
         "email_host": "smtp.example.com",
         "email_host_user": "mailer@example.com",
@@ -34,9 +34,12 @@ def good_settings(**overrides: Any) -> dict[str, Any]:
         "trusted_proxy_count": "1",
         "private_bucket": "adyraforge-private",
         "media_bucket": "adyraforge-media",
-        "media_url": "https://media.adyraforge.com/",
+        "media_url": "https://adyraforge-media.s3.us-west-004.backblazeb2.com/",
         "storage_access_key_id": "placeholder-key-id",
         "storage_secret_access_key": "placeholder-not-real",
+        "netlify_proxy_signing_secret": "x" * 16 + "placeholder-not-a-real-secret",
+        "default_from_email": "AdyraForge <sender@example.test>",
+        "lead_notify_email": "leads@example.test",
     }
     values.update(overrides)
     return values
@@ -66,9 +69,9 @@ def test_valid_production_settings_pass() -> None:
         ({"admin_url": "admin/"}, "unguessable"),
         ({"admin_url": "short/"}, "unguessable"),
         ({"cors_allowed_origins": []}, "CORS_ALLOWED_ORIGINS is missing"),
-        ({"cors_allowed_origins": ["http://adyraforge.com"]}, "https:// origins only"),
-        ({"csrf_trusted_origins": ["https://*.adyraforge.com"]}, "https:// origins only"),
-        ({"frontend_url": "http://adyraforge.com"}, "FRONTEND_URL"),
+        ({"cors_allowed_origins": ["http://adyraforge.netlify.app"]}, "https:// origins only"),
+        ({"csrf_trusted_origins": ["https://*.netlify.app"]}, "https:// origins only"),
+        ({"frontend_url": "http://adyraforge.netlify.app"}, "FRONTEND_URL"),
         ({"email_backend": "django.core.mail.backends.console.EmailBackend"}, "EMAIL_BACKEND"),
         ({"email_host": ""}, "EMAIL_HOST is missing"),
         ({"email_host_user": ""}, "EMAIL_HOST_USER is missing"),
@@ -86,8 +89,15 @@ def test_valid_production_settings_pass() -> None:
         ({"storage_access_key_id": ""}, "STORAGE_ACCESS_KEY_ID is missing"),
         ({"storage_secret_access_key": ""}, "STORAGE_SECRET_ACCESS_KEY is missing"),
         ({"media_bucket": "adyraforge-private"}, "must differ"),
-        ({"media_url": "http://media.adyraforge.com/"}, "MEDIA_URL must be"),
+        (
+            {"media_url": "http://adyraforge-media.s3.us-west-004.backblazeb2.com/"},
+            "MEDIA_URL must be",
+        ),
         ({"media_url": "/media/"}, "MEDIA_URL must be"),
+        ({"netlify_proxy_signing_secret": ""}, "NETLIFY_PROXY_SIGNING_SECRET must be set"),
+        ({"netlify_proxy_signing_secret": "short"}, "NETLIFY_PROXY_SIGNING_SECRET must be set"),
+        ({"default_from_email": ""}, "DEFAULT_FROM_EMAIL is missing"),
+        ({"lead_notify_email": ""}, "LEAD_NOTIFY_EMAIL is missing"),
     ],
 )
 def test_insecure_production_settings_are_rejected(overrides: dict[str, Any], message: str) -> None:
@@ -120,12 +130,12 @@ def _boot(env: dict[str, str]) -> subprocess.CompletedProcess[str]:
 PROD_ENV = {
     "DJANGO_ENV": "production",
     "SECRET_KEY": GOOD_KEY,
-    "ALLOWED_HOSTS": "api.adyraforge.com",
+    "ALLOWED_HOSTS": "adyraforge-api.onrender.com",
     "DATABASE_URL": "postgres://u:p@db.example:5432/app?sslmode=require",
     "ADMIN_URL": "forge-console-7f3a9c2e1b/",
-    "CORS_ALLOWED_ORIGINS": "https://adyraforge.com",
-    "CSRF_TRUSTED_ORIGINS": "https://adyraforge.com",
-    "FRONTEND_URL": "https://adyraforge.com",
+    "CORS_ALLOWED_ORIGINS": "https://adyraforge.netlify.app",
+    "CSRF_TRUSTED_ORIGINS": "https://adyraforge.netlify.app",
+    "FRONTEND_URL": "https://adyraforge.netlify.app",
     "EMAIL_HOST": "smtp.example.com",
     "EMAIL_HOST_USER": "mailer@example.com",
     "EMAIL_HOST_PASSWORD": "placeholder-not-real",
@@ -133,11 +143,14 @@ PROD_ENV = {
     "TRUSTED_PROXY_COUNT": "1",
     "PRIVATE_BUCKET": "adyraforge-private",
     "MEDIA_BUCKET": "adyraforge-media",
-    "MEDIA_URL": "https://media.adyraforge.com/",
+    "MEDIA_URL": "https://adyraforge-media.s3.us-west-004.backblazeb2.com/",
     "STORAGE_ACCESS_KEY_ID": "placeholder-key-id",
     "STORAGE_SECRET_ACCESS_KEY": "placeholder-not-real",
-    "STORAGE_ENDPOINT_URL": "https://example-account.r2.cloudflarestorage.com",
-    "STORAGE_REGION": "auto",
+    "STORAGE_ENDPOINT_URL": "https://s3.us-west-004.backblazeb2.com",
+    "STORAGE_REGION": "us-west-004",
+    "NETLIFY_PROXY_SIGNING_SECRET": "x" * 16 + "placeholder-not-a-real-secret",
+    "DEFAULT_FROM_EMAIL": "AdyraForge <sender@example.test>",
+    "LEAD_NOTIFY_EMAIL": "leads@example.test",
 }
 
 
@@ -213,3 +226,53 @@ def test_production_uploads_go_to_buckets_never_the_container_disk() -> None:
         "False",  # public media: plain URLs on the media domain
         "adyraforge-private",
     ]
+
+
+def _maintenance(env: dict[str, str], code: str) -> subprocess.CompletedProcess[str]:
+    clean = {k: v for k, v in os.environ.items() if k in {"PATH", "SYSTEMROOT", "HOME"}}
+    return subprocess.run(
+        [sys.executable, "-c", "import django; django.setup();" + code],
+        cwd=BACKEND_DIR,
+        env={**clean, "DJANGO_ENV": "maintenance", "DJANGO_SETTINGS_MODULE": "config.settings",
+             **env},
+        capture_output=True, text=True, timeout=60, check=False,
+    )  # fmt: skip
+
+
+MAINT_ENV = {
+    "SECRET_KEY": GOOD_KEY,
+    "DATABASE_URL": "postgres://u:p@db.example/app?sslmode=require",
+}
+
+
+def test_maintenance_settings_need_only_an_ssl_database_url_and_a_key() -> None:
+    result = _maintenance(MAINT_ENV, "from django.conf import settings as s; print(s.DEBUG)")
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.strip() == "False"
+
+
+@pytest.mark.parametrize(
+    ("override", "message"),
+    [({"DATABASE_URL": "postgres://u:p@db.example/app"}, "sslmode=require"),
+     ({"SECRET_KEY": ""}, "SECRET_KEY is missing")],
+)  # fmt: skip
+def test_maintenance_settings_refuse_insecure_config(override, message) -> None:
+    result = _maintenance({**MAINT_ENV, **override}, "")
+    assert result.returncode != 0
+    assert message in result.stderr
+
+
+def test_maintenance_settings_can_never_serve_the_site() -> None:
+    code = (
+        "from django.test import Client;"
+        "c = Client();"
+        "print(c.get('/api/public/projects/', HTTP_HOST='adyraforge-api.onrender.com').status_code,"
+        " c.get('/api/health', HTTP_HOST='x').status_code,"
+        " c.get('/', HTTP_HOST='localhost').status_code)"
+    )
+    result = _maintenance(MAINT_ENV, code)
+    assert result.returncode == 0, result.stderr
+    statuses = result.stdout.split()
+    # 400 DisallowedHost (no ALLOWED_HOSTS); /api/health is answered before host
+    # validation by design but touches nothing.
+    assert statuses[0] == "400" and statuses[2] == "400", statuses

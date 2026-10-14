@@ -21,8 +21,9 @@ from rest_framework import status
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.request import Request
 from rest_framework.response import Response
-from rest_framework.throttling import AnonRateThrottle, ScopedRateThrottle, UserRateThrottle
 from rest_framework.views import APIView
+
+from apps.core.throttling import AnonRateThrottle, ScopedRateThrottle, UserRateThrottle
 
 from .emails import send_password_reset
 from .lockout import lockout_response

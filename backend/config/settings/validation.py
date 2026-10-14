@@ -18,6 +18,7 @@ _GUESSABLE_ADMIN_PATHS = {
     "dashboard",
 }
 MAX_TRUSTED_PROXY_COUNT = 5
+MIN_PROXY_SECRET_LENGTH = 32
 _SSL_MODES = {"require", "verify-ca", "verify-full"}
 _POSTGRES_SCHEMES = {"postgres", "postgresql", "pgsql", "postgis"}
 MIN_SECRET_KEY_LENGTH = 50
@@ -38,6 +39,17 @@ def secret_key_problem(secret_key: str) -> str | None:
         return f"SECRET_KEY must be at least {MIN_SECRET_KEY_LENGTH} characters."
     if len(set(secret_key)) < MIN_SECRET_KEY_UNIQUE_CHARS:
         return "SECRET_KEY has too few unique characters."
+    return None
+
+
+def database_url_problem(database_url: str) -> str | None:
+    """PostgreSQL over TLS only (production and the maintenance settings)."""
+    if not database_url:
+        return "DATABASE_URL is missing."
+    if urlparse(database_url).scheme not in _POSTGRES_SCHEMES:
+        return "DATABASE_URL must be a PostgreSQL URL."
+    if not set(parse_qs(urlparse(database_url).query).get("sslmode", [])) & _SSL_MODES:
+        return "DATABASE_URL must set sslmode=require (or verify-ca / verify-full)."
     return None
 
 
@@ -64,6 +76,9 @@ def validate_production_settings(
     media_url: str,
     storage_access_key_id: str,
     storage_secret_access_key: str,
+    netlify_proxy_signing_secret: str,
+    default_from_email: str,
+    lead_notify_email: str,
 ) -> None:
     """Raise ImproperlyConfigured listing every problem found."""
     errors: list[str] = []
@@ -77,12 +92,8 @@ def validate_production_settings(
     elif any(h in {"*", "."} for h in hosts):
         errors.append("ALLOWED_HOSTS must not contain wildcards.")
 
-    if not database_url:
-        errors.append("DATABASE_URL is missing.")
-    elif urlparse(database_url).scheme not in _POSTGRES_SCHEMES:
-        errors.append("DATABASE_URL must be a PostgreSQL URL.")
-    elif not set(parse_qs(urlparse(database_url).query).get("sslmode", [])) & _SSL_MODES:
-        errors.append("DATABASE_URL must set sslmode=require (or verify-ca / verify-full).")
+    if problem := database_url_problem(database_url):
+        errors.append(problem)
 
     if debug:
         errors.append("DEBUG must be False in production.")
@@ -140,6 +151,16 @@ def validate_production_settings(
         errors.append("PRIVATE_BUCKET must differ from the public MEDIA_BUCKET.")
     if not media_url.startswith("https://"):
         errors.append("MEDIA_URL must be the https:// public origin of MEDIA_BUCKET.")
+
+    if len(netlify_proxy_signing_secret) < MIN_PROXY_SECRET_LENGTH:
+        errors.append(
+            f"NETLIFY_PROXY_SIGNING_SECRET must be set ({MIN_PROXY_SECRET_LENGTH}+ chars) "
+            "and match the Netlify env var, or every visitor shares Netlify's IP."
+        )
+    if "@" not in default_from_email:
+        errors.append("DEFAULT_FROM_EMAIL is missing (must be the sending account's address).")
+    if "@" not in lead_notify_email:
+        errors.append("LEAD_NOTIFY_EMAIL is missing (where new-lead alerts go).")
 
     if errors:
         raise ImproperlyConfigured("Refusing to start in production:\n- " + "\n- ".join(errors))

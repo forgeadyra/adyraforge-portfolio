@@ -6,9 +6,9 @@ from django.core.cache import cache
 from django.test import RequestFactory
 from rest_framework.settings import api_settings
 from rest_framework.test import APIClient
-from rest_framework.throttling import AnonRateThrottle
 
 from apps.core.security import client_ip
+from apps.core.throttling import AnonRateThrottle
 
 rf = RequestFactory()
 SPOOFED = "6.6.6.6, 7.7.7.7"

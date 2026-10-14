@@ -8,10 +8,10 @@ from rest_framework import status
 from rest_framework.permissions import AllowAny
 from rest_framework.request import Request
 from rest_framework.response import Response
-from rest_framework.throttling import AnonRateThrottle, ScopedRateThrottle
 from rest_framework.views import APIView
 
 from apps.core.security import request_ip_hash
+from apps.core.throttling import AnonRateThrottle, ScopedRateThrottle
 from apps.recommender.services import services_for
 
 from .models import Lead, PlannerSubmission

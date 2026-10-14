@@ -9,7 +9,8 @@ from django.db.models import QuerySet
 from rest_framework import viewsets
 from rest_framework.generics import ListAPIView
 from rest_framework.permissions import AllowAny
-from rest_framework.throttling import ScopedRateThrottle
+
+from apps.core.throttling import ScopedRateThrottle
 
 from .models import Project, Service, Technology, Testimonial
 from .serializers import (

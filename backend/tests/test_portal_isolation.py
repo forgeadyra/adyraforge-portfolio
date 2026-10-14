@@ -106,6 +106,8 @@ def test_own_data_works_end_to_end(portal) -> None:
 
     link = c.get(f"/api/portal/files/{alice['file'].pk}/download/").json()
     assert link["expires_in"] == 300
+    # Same-origin path: the browser follows it through the frontend's /api proxy.
+    assert link["url"].startswith("/api/files/") and "://" not in link["url"]
     download = c.get(link["url"])
     assert download.status_code == 200
     assert download["Content-Disposition"].startswith('attachment; filename="alice-brief.pdf"')

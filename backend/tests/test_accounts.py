@@ -13,8 +13,8 @@ def test_custom_user_model_is_active() -> None:
 
 @pytest.mark.django_db
 def test_email_is_normalised_and_password_hashed_with_argon2() -> None:
-    user = User.objects.create_user(email="  Forge@AdyraForge.COM ", password="correct horse 42!")
-    assert user.email == "forge@adyraforge.com"
+    user = User.objects.create_user(email="  Forge@Example.TEST ", password="correct horse 42!")
+    assert user.email == "forge@example.test"
     assert user.password.startswith("argon2")
     assert "correct horse" not in user.password
     assert user.check_password("correct horse 42!")

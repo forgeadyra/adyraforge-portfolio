@@ -52,7 +52,7 @@ check(f"POST   {thread.replace(API, '')}", r.status_code == 404, str(r.status_co
 print("\n== bob's signed download links are useless to alice ==")
 for name in ("files", "invoices"):
     link = bob.get(f"{API}/api/portal/{name}/{resources[name]}/download/", timeout=10).json()["url"]
-    path = "/" + link.split("/", 3)[3]
+    path = link if link.startswith("/") else "/" + link.split("/", 3)[3]
     own = bob.get(f"{API}{path}", timeout=10)
     stolen = alice.get(f"{API}{path}", timeout=10)
     check(f"bob downloads own {name[:-1]}", own.status_code == 200, str(own.status_code))

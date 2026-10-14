@@ -77,3 +77,65 @@ def test_ci_check_deploy_env_boots_production() -> None:
     env, _ = _deploy_step()
     result = _boot_production({**env, "SECRET_KEY": get_random_secret_key()})
     assert result.returncode == 0, result.stderr[-1500:]
+
+
+# --- operations workflows (Render free tier: no pre-deploy command, no cron) -------
+
+WORKFLOWS = BACKEND_DIR.parent / ".github" / "workflows"
+_SHA_PIN = re.compile(r"^[\w.-]+/[\w.-]+@[0-9a-f]{40}$")
+
+
+def _workflow(name: str) -> dict:
+    return yaml.safe_load((WORKFLOWS / name).read_text(encoding="utf-8"))
+
+
+def _steps(wf: dict) -> list[dict]:
+    return [step for job in wf["jobs"].values() for step in job["steps"]]
+
+
+def test_every_workflow_pins_third_party_actions_to_a_commit() -> None:
+    for path in WORKFLOWS.glob("*.yml"):
+        wf = yaml.safe_load(path.read_text(encoding="utf-8"))
+        for step in _steps(wf):
+            if "uses" in step:
+                assert _SHA_PIN.match(step["uses"]), f"{path.name}: {step['uses']}"
+
+
+def test_maintenance_runs_clearsessions_daily_as_the_app_role() -> None:
+    wf = _workflow("maintenance.yml")
+    triggers = wf[True]  # PyYAML reads the bare `on:` key as boolean True
+    (cron,) = [s["cron"] for s in triggers["schedule"]]
+    minute, hour, dom, month, dow = cron.split()
+    assert minute.isdigit() and hour.isdigit() and (dom, month, dow) == ("*", "*", "*")
+    assert "workflow_dispatch" in triggers
+    assert wf["permissions"] == {"contents": "read"}
+    job = wf["jobs"]["clearsessions"]
+    assert job["env"]["DJANGO_ENV"] == "maintenance"
+    (step,) = [s for s in job["steps"] if "clearsessions" in s.get("run", "")]
+    assert step["env"] == {"DATABASE_URL": "${{ secrets.NEON_APP_DATABASE_URL }}"}
+    assert "python manage.py clearsessions" in step["run"]
+
+
+def test_deploy_migrates_as_owner_before_triggering_render() -> None:
+    wf = _workflow("deploy-backend.yml")
+    assert wf["permissions"] == {"contents": "read"}
+    steps = wf["jobs"]["migrate-then-deploy"]["steps"]
+    migrate = next(i for i, s in enumerate(steps) if "manage.py migrate" in s.get("run", ""))
+    deploy = next(i for i, s in enumerate(steps) if "RENDER_DEPLOY_HOOK_URL" in s.get("run", ""))
+    assert migrate < deploy
+    assert steps[migrate]["env"] == {"DATABASE_URL": "${{ secrets.NEON_OWNER_DATABASE_URL }}"}
+    assert steps[deploy]["env"] == {
+        "RENDER_DEPLOY_HOOK_URL": "${{ secrets.RENDER_DEPLOY_HOOK_URL }}"
+    }
+    assert wf["jobs"]["migrate-then-deploy"]["env"]["DJANGO_ENV"] == "maintenance"
+
+
+def test_operations_workflows_hold_no_literal_secrets() -> None:
+    """Database URLs, hooks and keys only ever come from GitHub encrypted secrets."""
+    sensitive = re.compile(r"postgres(ql)?://|api\.render\.com/deploy|SECRET_KEY=[^\"$]")
+    for name in ("maintenance.yml", "deploy-backend.yml"):
+        text = (WORKFLOWS / name).read_text(encoding="utf-8")
+        assert not sensitive.search(text), name
+        for step in _steps(yaml.safe_load(text)):
+            for value in step.get("env", {}).values():
+                assert str(value).startswith("${{ secrets."), (name, value)

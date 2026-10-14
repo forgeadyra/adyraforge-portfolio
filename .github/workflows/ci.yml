@@ -44,6 +44,9 @@ jobs:
           --health-cmd "pg_isready -U ci -d ci"
           --health-interval 5s --health-timeout 5s --health-retries 10
     env:
+      # config.settings fails closed to production when DJANGO_ENV is unset; tests
+      # run under test settings. The check --deploy step overrides this to production.
+      DJANGO_ENV: test
       DATABASE_URL: postgres://ci:ci@localhost:5432/ci
       PYTHONPATH: ${{ github.workspace }}/ml
     steps:

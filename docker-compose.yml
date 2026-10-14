@@ -29,6 +29,8 @@ services:
     volumes:
       - ./backend:/app/backend
       - ./ml:/app/ml
+      # Read-only, for tests/test_ci_workflow.py (CI env must satisfy prod validation).
+      - ./.github:/app/.github:ro
     ports:
       - "127.0.0.1:8000:8000"
     depends_on:

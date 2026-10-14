@@ -84,6 +84,8 @@ Uploads never touch the container disk (Render wipes it on every deploy). Produc
    | `PRIVATE_BUCKET` / `MEDIA_BUCKET` | `adyraforge-private` / `adyraforge-media` | §1b |
 
    A missing or weak required value stops the boot with `ImproperlyConfigured`. The log names the variable, never its value.
+
+   **Required by the boot check for storage:** `PRIVATE_BUCKET`, `MEDIA_BUCKET` (must differ), `STORAGE_ACCESS_KEY_ID`, `STORAGE_SECRET_ACCESS_KEY` and `MEDIA_URL` (an `https://` origin). CI's `check --deploy` step sets obviously fake values for all five, and `backend/tests/test_ci_workflow.py` fails if CI ever misses a variable the boot check requires.
 3. **Deploy.** The build log must show `pip install --require-hashes` succeeding; the release log shows the migrations.
 4. **Render Shell:**
    ```bash

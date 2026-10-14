@@ -1,0 +1,17 @@
+# STOPGAP (SECURITY_AUDIT_V2 M-4): publish ONLY the v1 site in legacy/.
+# There is no build step, and nothing outside legacy/ (backend/, frontend/, CLAUDE.md,
+# docs, ...) can ever be served. Replaced by the v2 netlify.toml (base "frontend")
+# when the v2 PR merges.
+[build]
+  publish = "legacy"
+  command = ""
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    Strict-Transport-Security = "max-age=31536000; includeSubDomains"
+    X-Frame-Options = "DENY"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    Permissions-Policy = "camera=(), microphone=(), geolocation=(), payment=(), usb=()"
+    Cross-Origin-Opener-Policy = "same-origin"

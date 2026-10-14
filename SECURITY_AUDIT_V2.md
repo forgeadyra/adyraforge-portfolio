@@ -18,7 +18,7 @@ Every check names the script or command that ran it. The raw output is in [`secu
 | M-1 | Medium | Deep JSON, or a JSON array instead of an object, caused 500s (RecursionError / AttributeError) | **Fixed** |
 | M-2 | Medium | Public images stored byte-for-byte: PNG+PHP/JS polyglot served as-is; EXIF/GPS kept | **Fixed** |
 | M-3 | Medium | Under production settings `/healthz/` returned 400 (DisallowedHost), so a correct deploy would never report healthy | **Fixed** |
-| M-4 | Medium | Live `adyraforge.netlify.app` serves repo files from `main` (`CLAUDE.md`, `backend/config/settings/base.py`, `docker-compose.yml`, `SECURITY_AUDIT_V1.md`). No secrets in them | **Open on the live site.** Fixed in `v2/foundation` (`netlify.toml` builds only `frontend/`; v1 is in `legacy/`). Closes when that reaches `main`, which needs your OK |
+| M-4 | Medium | Live `adyraforge.netlify.app` served repo files from `main` (`CLAUDE.md`, `backend/config/settings/base.py`, `docker-compose.yml`, `SECURITY_AUDIT_V1.md`). No secrets in them | **Fixed on production** by stopgap PR #3 (`e07a002`): Netlify publishes only `legacy/`. Every repo path now returns 404 |
 | M-5 | Medium | Production stored public and private media on the container's local disk, which is ephemeral on Render | **Fixed** (`afe0d6c`): private S3-compatible bucket, files released only as 60-second presigned URLs after the ownership check; proven against a real S3 server |
 | M-6 | Medium | No error monitoring (rule 14 names Sentry) | **Fixed in code** (Phase 8): Sentry on both apps, all data collection off + scrubbers. Activates once you set the DSNs |
 | M-7 | Medium | Frontend CSP allows `'unsafe-inline'` scripts | **Accepted**, with reasons below |
@@ -26,6 +26,7 @@ Every check names the script or command that ran it. The raw output is in [`secu
 | L-2 | Low | Staff-only admin uploads are buffered to temp disk before the 25 MB check | Accepted (staff + OTP only) |
 | L-3 | Low | `Server: gunicorn` header (no version) | Accepted |
 | L-4 | Low | Turnstile verification raised a 500 on a non-object response instead of failing closed | **Fixed** |
+| L-5 | Low | A production frontend build shipped an **empty site** when the API answered 404 for everything (wrong URL, service not deployed) or had no published projects | **Fixed** (`34ff275`): the build now fails in both cases, as it already did for an unreachable API |
 | I-1 | Info | CSP `img-src` listed the API origin twice | **Fixed** |
 | I-2 | Info | Session *deletion* cookie lacks `Secure` (Django `delete_cookie` default; the cookie is empty) | No action |
 
@@ -102,7 +103,7 @@ Added 2026-10-14 (`32d475a`, [`30-step1-client-ip-tests.txt`](security/audit-v2/
 
 **Proof.** Both production containers report `healthy`. `tests/test_security_headers.py` has two new tests.
 
-### M-4: Live site serves repository files (Medium, open, needs approval)
+### M-4: Live site serves repository files (Medium, fixed on production 2026-10-14)
 
 `adyraforge.netlify.app` publishes the repo root of `main` (since the v1 → v2 merge). [`21-live-netlify-exposure.txt`](security/audit-v2/21-live-netlify-exposure.txt) shows **200** today for:
 - `/CLAUDE.md`
@@ -112,7 +113,11 @@ Added 2026-10-14 (`32d475a`, [`30-step1-client-ip-tests.txt`](security/audit-v2/
 
 No secret is exposed (gitleaks on full history is clean), but this hands an attacker the architecture and security design. **Merging `v2/foundation` into `main` before fixing this would also publish `security/` and this report.**
 
-The fix is ready on local branch `fix/netlify-publish-v1-only` (`8ba6908`): publish only `site-v1/` with safe headers. It needs a push to `main`, which is an outward action, so **I have not done it without your OK.** In Phase 8 the Netlify site switches to building `frontend/` (base directory `frontend`), which removes the problem for good.
+**Fix (stopgap, approved and merged):** PR #3 (`e07a002`) moves the v1 `index.html` to `legacy/`, which holds the whole v1 site since it has no local assets. A root `netlify.toml` publishes only that folder, with no build step and basic security headers. It was verified on the PR's deploy preview before merging, then on production ([`21-live-netlify-exposure.txt`](security/audit-v2/21-live-netlify-exposure.txt)):
+- `/CLAUDE.md`, `/README.md`, `/SECURITY_AUDIT_V1.md`, `/backend/config/settings/base.py`, `/docker-compose.yml`, `/.github/...`, `/netlify.toml` and `/.env` all return **404**;
+- `/` still serves the v1 homepage (same title, same 52 273 bytes as before).
+
+The v2 PR replaces this with its own `netlify.toml` (base `frontend`) when it merges.
 
 ### M-5: Media on ephemeral disk in production (Medium, fixed)
 

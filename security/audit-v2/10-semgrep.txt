@@ -1,4 +1,4 @@
-$ semgrep scan --config p/django --config p/nextjs --config p/secrets --metrics=off --error (semgrep/semgrep:1.95.0, HEAD 834f12d)
+$ semgrep scan --config p/django --config p/nextjs --config p/secrets --metrics=off --error (semgrep/semgrep:1.95.0, HEAD 7e7a15c)
 METRICS: Using configs from the Registry (like --config=p/ci) reports pseudonymous rule metrics to semgrep.dev.
 To disable Registry rule metrics, use "--metrics=off".
 Using configs only from local files (like --config=xyz.yml) does not enable metrics.
@@ -10,14 +10,14 @@ More information: https://semgrep.dev/docs/metrics
 ┌─────────────┐
 │ Scan Status │
 └─────────────┘
-  Scanning 235 files tracked by git with 80 Code rules:
+  Scanning 273 files tracked by git with 80 Code rules:
                                                                                                                         
   Language      Rules   Files          Origin      Rules                                                                
  ─────────────────────────────        ───────────────────                                                               
-  <multilang>      37     208          Community      80                                                                
-  python           28      90                                                                                           
-  ts                5      65                                                                                           
-  yaml              1       3                                                                                           
+  <multilang>      37     244          Community      80                                                                
+  python           28      95                                                                                           
+  ts                5      72                                                                                           
+  yaml              1       5                                                                                           
   js                5       2                                                                                           
                                                                                                                         
                 
@@ -27,12 +27,12 @@ More information: https://semgrep.dev/docs/metrics
 └──────────────┘
 Some files were skipped or only partially analyzed.
   Scan was limited to files tracked by git.
-  Scan skipped: 27 files matching .semgrepignore patterns
+  Scan skipped: 29 files matching .semgrepignore patterns
   For a full list of skipped files, run semgrep with the --verbose flag.
 
 (need more rules? `semgrep login` for additional free Semgrep Registry rules)
 
-Ran 71 rules on 208 files: 0 findings.
+Ran 71 rules on 244 files: 0 findings.
 
 A new version of Semgrep is available. See https://semgrep.dev/docs/upgrading
 If Semgrep missed a finding, please send us feedback to let us know!

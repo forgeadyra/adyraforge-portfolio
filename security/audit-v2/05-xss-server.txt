@@ -1,4 +1,4 @@
-$ python xss_check.py
+$ python xss_check.py   (HEAD 7e7a15c, 2026-10-14T06:08Z)
 [PASS] GET / renders  ->  200
 [PASS] frontend /: no unescaped payload
 [PASS] frontend /: JSON-LD has no raw '<'

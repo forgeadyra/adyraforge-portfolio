@@ -1,7 +1,7 @@
 # AdyraForge v2 — Security Audit (Phase 7)
 
-**Date:** 2026-10-13
-**Branch / code audited:** `v2/foundation`. Fixes are committed (`9a75ccc` … `ab15334`). The final proof run is in `security/audit-v2/99-final-*.txt`.
+**Date:** 2026-10-13, full re-run 2026-10-14
+**Branch / code audited:** `v2/foundation` at `7e7a15c`. Every check below was re-run on that commit, and the raw output files were overwritten with that run. The final proof run is in `security/audit-v2/99-final-*.txt`.
 **Method:** hostile, black-box and white-box, against the running stack.
 
 - The dev stack in Docker.
@@ -18,8 +18,8 @@ Every check names the script or command that ran it. The raw output is in [`secu
 | M-1 | Medium | Deep JSON, or a JSON array instead of an object, caused 500s (RecursionError / AttributeError) | **Fixed** |
 | M-2 | Medium | Public images stored byte-for-byte: PNG+PHP/JS polyglot served as-is; EXIF/GPS kept | **Fixed** |
 | M-3 | Medium | Under production settings `/healthz/` returned 400 (DisallowedHost), so a correct deploy would never report healthy | **Fixed** |
-| M-4 | Medium | Live `adyraforge.netlify.app` serves repo files from `main` (`CLAUDE.md`, `backend/config/settings/base.py`, `docker-compose.yml`, `SECURITY_AUDIT_V1.md`). No secrets in them | **Open: fix ready, needs your approval to push** |
-| M-5 | Medium | Production stores public and private media on the container's local disk, which is ephemeral on Render | **Open: Phase 8 decision (Cloudinary or S3)** |
+| M-4 | Medium | Live `adyraforge.netlify.app` serves repo files from `main` (`CLAUDE.md`, `backend/config/settings/base.py`, `docker-compose.yml`, `SECURITY_AUDIT_V1.md`). No secrets in them | **Open on the live site.** Fixed in `v2/foundation` (`netlify.toml` builds only `frontend/`; v1 is in `legacy/`). Closes when that reaches `main`, which needs your OK |
+| M-5 | Medium | Production stored public and private media on the container's local disk, which is ephemeral on Render | **Fixed** (`afe0d6c`): private S3-compatible bucket, files released only as 60-second presigned URLs after the ownership check; proven against a real S3 server |
 | M-6 | Medium | No error monitoring (rule 14 names Sentry) | **Fixed in code** (Phase 8): Sentry on both apps, all data collection off + scrubbers. Activates once you set the DSNs |
 | M-7 | Medium | Frontend CSP allows `'unsafe-inline'` scripts | **Accepted**, with reasons below |
 | L-1 | Low | Signed download tokens appear in the gunicorn access log (URL path) | Accepted (5-min expiry, bound to the user) |
@@ -66,6 +66,11 @@ New tests in `tests/test_client_ip.py` check:
 - That a garbage header falls back to `REMOTE_ADDR`.
 - That rotating the spoofed prefix still trips the contact throttle at both settings.
 
+Added 2026-10-14 (`32d475a`, [`30-step1-client-ip-tests.txt`](security/audit-v2/30-step1-client-ip-tests.txt), 16/16 with the lockout tests):
+- **(a)** behind one proxy, two real clients arriving from the same proxy address get **independent** throttle buckets and **independent** axes lockouts. An attacker locking out Alice from network A doesn't lock out Alice on network B.
+- **(b)** rotating a forged leftmost `X-Forwarded-For` entry on every attempt **cannot escape** the lockout.
+- The axes setting name was checked against the installed django-axes 8.3.1 source (`axes/helpers.py: get_client_ip_address` reads `AXES_CLIENT_IP_CALLABLE` first). django-ipware is not installed, so the `AXES_IPWARE_*` settings are inert.
+
 `tests/test_settings_validation.py` checks that production refuses unset or invalid values.
 
 ### M-1: JSON bodies that crash the parser (Medium, fixed)
@@ -109,11 +114,24 @@ No secret is exposed (gitleaks on full history is clean), but this hands an atta
 
 The fix is ready on local branch `fix/netlify-publish-v1-only` (`8ba6908`): publish only `site-v1/` with safe headers. It needs a push to `main`, which is an outward action, so **I have not done it without your OK.** In Phase 8 the Netlify site switches to building `frontend/` (base directory `frontend`), which removes the problem for good.
 
-### M-5: Media on ephemeral disk in production (Medium, open)
+### M-5: Media on ephemeral disk in production (Medium, fixed)
 
-`config/settings/production.py` uses `FileSystemStorage` for `MEDIA_ROOT` and `PRIVATE_MEDIA_ROOT`. On Render, the container filesystem is wiped on every deploy, so client files and invoices would be lost. Rule 9 calls for Cloudinary or S3 with signed URLs for private files.
+**Cause.** `production.py` used `FileSystemStorage` for public media and private client files. Render wipes the container filesystem on every deploy, so client files and invoices would have been lost.
 
-This is a Phase 8 blocker and needs your choice of provider. Credentials go in the Render dashboard; never paste them in chat.
+**Fix** (`afe0d6c`). Both now live in S3-compatible buckets (Cloudflare R2 recommended, or AWS S3), via django-storages.
+- **Private bucket** (`STORAGES["private"]`): no public access. The signed download view keeps its per-user token and ownership check. Only after both pass does it answer `302` to a presigned URL valid for **60 s**, with `Content-Disposition: attachment` and `Referrer-Policy: no-referrer`.
+- **Media bucket:** public images only.
+- Production refuses to boot without both buckets and credentials, or with one bucket used for both.
+- Cloudinary was not chosen: it blocks PDF/ZIP delivery by default, and invoices are PDFs.
+
+**Proof.**
+- All existing ownership, download and upload tests pass unchanged (223 in [`31-step2-storage-tests.txt`](security/audit-v2/31-step2-storage-tests.txt)).
+- `tests/test_private_bucket.py` runs the real `S3Storage` against moto. It checks that uploads are UUID-named with no public grants, the owner gets a 60 s presigned attachment, Bob's link never yields a bucket URL for Alice, and anonymous users get 403 with no redirect.
+- A **live run against a real S3 server** (SeaweedFS, SigV4 enforced) is in [`31-private-bucket-live.txt`](security/audit-v2/31-private-bucket-live.txt), **12/12**:
+  - anonymous object GET and bucket listing → 403;
+  - the presigned URL returns the exact bytes as an attachment;
+  - a tampered signature, a stretched `X-Amz-Expires` and an expired URL → 403;
+  - the full Django flow (owner link → 302 → file; another client → 404, no bucket URL).
 
 ### M-6: No error monitoring (Medium, fixed in code)
 
@@ -161,6 +179,7 @@ Next.js App Router injects inline bootstrap scripts. A nonce-based CSP forces ev
 | | | Unit tests: cross-client isolation, anonymous → 403 on every protected route and method, admin API needs staff+OTP | Pass | `test_portal_isolation.py`, `test_access_control.py` in the final pytest run |
 | | | Admin path `/admin/` and `/admin/login/` under production settings | **404**; admin only at the secret `ADMIN_URL` | [`19-prod-probe.txt`](security/audit-v2/19-prod-probe.txt) |
 | | | CSRF: no token, forged token, valid token + evil Origin, form POST | All rejected (403/415); control 201 | [`02-csrf.txt`](security/audit-v2/02-csrf.txt) |
+| | | Private files in the bucket: anonymous access, link replay by another client, tampered/expired presigned URLs | All refused; only the owner, after the ownership check, gets a 60 s URL | [`31-private-bucket-live.txt`](security/audit-v2/31-private-bucket-live.txt) |
 | A02 | Cryptographic Failures | Cookie flags under production settings | `sessionid` and `csrftoken`: `Secure; HttpOnly; SameSite=Lax` | [`19-prod-probe.txt`](security/audit-v2/19-prod-probe.txt) |
 | | | HTTPS: plain-http request | 301 to `https://`; HSTS `max-age=31536000; includeSubDomains; preload` on API and frontend | [`19`](security/audit-v2/19-prod-probe.txt), [`18`](security/audit-v2/18-headers-frontend.txt) |
 | | | Password hashing | Argon2 first, PBKDF2 fallback (`settings/base.py`); SMTP must be TLS or SSL (boot validation) | `test_accounts.py`, `test_settings_validation.py` |
@@ -168,6 +187,7 @@ Next.js App Router injects inline bootstrap scripts. A nonce-based CSP forces ev
 | | | SQL: ORM only; semgrep `p/django`, bandit, ruff `S` | 0 SQL findings; no raw SQL in code | [`10`](security/audit-v2/10-semgrep.txt), [`12`](security/audit-v2/12-bandit.txt), [`13`](security/audit-v2/13-ruff-security.txt) |
 | A04 | Insecure Design | Rate-limit floods on login, contact, planner, password reset | 429 + `Retry-After` on every endpoint; axes locks after 5 failures | [`03-rate-limits.txt`](security/audit-v2/03-rate-limits.txt) |
 | | | Rate-limit **bypass** via `X-Forwarded-For` | **Was vulnerable (H-1), fixed** | [`11-*`](security/audit-v2/) |
+| | | Behind one proxy: two real clients throttled and locked out independently; forged leftmost entry can't escape | Pass | [`30-step1-client-ip-tests.txt`](security/audit-v2/30-step1-client-ip-tests.txt) |
 | | | Honeypot + Turnstile fail closed | Covered by tests, incl. Cloudflare unreachable and non-object responses | `test_public_forms.py` |
 | A05 | Security Misconfiguration | `manage.py check --deploy --fail-level WARNING` with production settings | **0 issues**; DEBUG=False; 29-char admin path | [`20-check-deploy.txt`](security/audit-v2/20-check-deploy.txt) |
 | | | Headers, API (production settings) | HSTS, nosniff, XFO DENY, Referrer-Policy, COOP, Permissions-Policy, CSP `default-src 'none'`; no `X-Powered-By` | [`19-prod-probe.txt`](security/audit-v2/19-prod-probe.txt) |
@@ -187,7 +207,7 @@ Next.js App Router injects inline bootstrap scripts. A nonce-based CSP forces ev
 | | | Public image polyglot / EXIF | **Was vulnerable (M-2), fixed** | [`04-*`](security/audit-v2/) |
 | | | Dependencies pinned with hashes (`--require-hashes`), `package-lock.json` committed | Yes | `backend/Dockerfile`, `requirements/*.txt` |
 | A09 | Logging & Monitoring | 500s logged server-side; access log free of passwords, cookies and session ids | Confirmed (0 matches) | [`19-prod-probe.txt`](security/audit-v2/19-prod-probe.txt) |
-| | | Alerting | **Missing (M-6)** | |
+| | | Alerting | Sentry wired on both apps (M-6), errors only, all data collection off; activates once the DSNs are set | `test_monitoring.py`, `sentry-scrub.test.ts` |
 | A10 | SSRF | Outbound HTTP calls in the backend | One: Turnstile `siteverify`, a constant https URL. No user-controlled URL is ever fetched (bandit B310 triaged) | [`12-bandit.txt`](security/audit-v2/12-bandit.txt) |
 
 ## OWASP API Security Top 10 (2023): check by check
@@ -211,17 +231,17 @@ Next.js App Router injects inline bootstrap scripts. A nonce-based CSP forces ev
 |------|---------|--------|-----|
 | bandit 1.9.4 | `bandit -r backend ml -x backend/tests` | 0 High; 1 Medium + 2 Low, all triaged false positives | [`12`](security/audit-v2/12-bandit.txt) |
 | ruff (S rules) | `ruff check --select S . ../ml` | All checks passed | [`13`](security/audit-v2/13-ruff-security.txt) |
-| semgrep 1.95.0 | `--config p/django --config p/nextjs --config p/secrets` at `834f12d` | 71 rules, 208 files, **0 findings** | [`10`](security/audit-v2/10-semgrep.txt) |
-| gitleaks 8.30.1 | full history | No leaks | [`99-final-gitleaks.txt`](security/audit-v2/) |
-| deptry 0.25.1 | on `requirements/*.in` | 7 hits, all string-loaded (settings, CLI) | [`14`](security/audit-v2/14-deptry.txt) |
-| depcheck 1.4.7 | `frontend/` | 3 hits, all config-loaded | [`07`](security/audit-v2/07-depcheck.txt) |
+| semgrep 1.95.0 | `--config p/django --config p/nextjs --config p/secrets` at `7e7a15c` | 71 rules, 244 files, **0 findings** | [`10`](security/audit-v2/10-semgrep.txt) |
+| gitleaks 8.30.1 | full history (68 commits) | No leaks | [`08`](security/audit-v2/08-gitleaks.txt) |
+| deptry 0.25.1 | on `requirements/*.in` | 8 hits, all string-loaded (settings incl. `STORAGES`, CLI) | [`14`](security/audit-v2/14-deptry.txt) |
+| depcheck 1.4.7 | `frontend/` | 4 hits, all config-loaded (incl. the Netlify runtime plugin) | [`07`](security/audit-v2/07-depcheck.txt) |
 | Bundle grep | every file a browser can receive from the production build | 0 hits for a server-only canary secret, the internal API URL, the admin path, secret names, key patterns, `sourceMappingURL`. Positive control finds the public API URL in 12 files | [`17`](security/audit-v2/17-bundle-grep.txt) |
 
 ## What I could not verify (honestly)
 
-1. **Neon role behaviour, and Sentry delivery.** The least-privilege role scheme was rehearsed on local Postgres 16 ([`23-least-privilege-db.txt`](security/audit-v2/23-least-privilege-db.txt)), not on Neon. It assumes that roles created with SQL do not join `neon_superuser`; the verification `SELECT` in `deploy/neon_app_role.sql` checks this on the real database. Event delivery to Sentry is untested until DSNs exist (DEPLOY.md §5 has the test).
-2. **The real Render proxy.** `TRUSTED_PROXY_COUNT=1` assumes Render's load balancer appends exactly one `X-Forwarded-For` entry and strips nothing else. That's tested with simulated headers, not against Render. **After the first deploy:** send two requests with a forged `X-Forwarded-For` from one machine. The contact throttle must count them together, and `Lead.ip_hash` must match for both.
-3. **The production Docker image itself.** Building the `prod` target failed on this network: PyPI read timeouts at ~180 kB/s (`docker build --target prod`). The production-mode probes ran the **dev image** with production settings and the prod image's exact gunicorn command; the dev image has the same hash-pinned `base.txt` packages plus dev tools. The prod image's differences (root-owned read-only code, no dev tools) are not exercised. Render builds it on deploy; check that the build log is green.
+1. **Cloudflare R2 itself, and Render's blueprint parser.** The bucket behaviour was proven on a real S3-compatible server (SeaweedFS), with the production `S3Storage` options, not on R2 or AWS. MinIO, the usual choice, no longer publishes free images: both registries refused the pull. DEPLOY.md §1b has the one-line anonymous-access check to run on the real bucket. Also, `render.yaml` parses as valid YAML with the intended services, cron and env group, but Render's own validation (including `sync: false` inside `envVarGroups`) only happens in the Blueprint preview.
+2. **Neon role behaviour, and Sentry delivery.** The least-privilege role scheme was rehearsed on Postgres 16 ([`23`](security/audit-v2/23-least-privilege-db.txt), and end to end on the prod image in [`24`](security/audit-v2/24-prod-image-rehearsal.txt)), not on Neon itself. It assumes that roles created with SQL do not join `neon_superuser`; the verification `SELECT` in `deploy/neon_app_role.sql` checks this on the real database. Event delivery to Sentry is untested until DSNs exist (DEPLOY.md §5 has the test).
+3. **The real Render proxy.** `TRUSTED_PROXY_COUNT=1` assumes Render's load balancer appends exactly one `X-Forwarded-For` entry and strips nothing else. That's tested with simulated headers, not against Render. **After the first deploy:** send two requests with a forged `X-Forwarded-For` from one machine. The contact throttle must count them together, and `Lead.ip_hash` must match for both.
 4. **The securityheaders.com / SSL Labs grade.** v2 isn't public yet, so I captured the same headers locally with curl. Re-run both scanners against `adyraforge.com` and `api.adyraforge.com` after deploy, including the TLS config and the HSTS preload submission.
 5. **Netlify-served headers and files.** The frontend headers come from `next.config.ts`. On Netlify, the Next.js runtime should apply them, but I haven't checked that on a deployed site. Also unchecked: that build internals under `.next/` are not publicly reachable (`prerender-manifest.json` and `middleware-manifest.json` hold Next's preview-mode signing keys). DEPLOY.md §4 has the curl checks for both.
 6. **Real Turnstile and SMTP.** Both are mocked or use test keys locally. The first real contact submission and invite email after deploy is the test.
@@ -235,8 +255,16 @@ Next.js App Router injects inline bootstrap scripts. A nonce-based CSP forces ev
   - Production refuses a `DATABASE_URL` without `sslmode=require|verify-ca|verify-full` (`tests/test_settings_validation.py`).
   - The running app uses a least-privilege role that cannot run DDL. Migrations run in the release command with a separate owner URL ([`23-least-privilege-db.txt`](security/audit-v2/23-least-privilege-db.txt)).
 - **Frontend:** the `netlify.toml` headers + CSP are identical to `next.config.ts`, enforced by a test that fails on any drift (mutation-checked). Netlify publishes only `frontend/`.
-- **Health:** `/api/health` added for UptimeRobot, served by the same pre-host-validation middleware as `/healthz/`.
+- **Health:** `/api/health` added for UptimeRobot, and now the Render health check, served by the same pre-host-validation middleware as `/healthz/`.
+- **Storage:** private bucket with presigned URLs (M-5, above).
+- **Sessions:** a daily `clearsessions` cron in `render.yaml` (rehearsed on the prod image as the app role in [`24`](security/audit-v2/24-prod-image-rehearsal.txt)).
+- **Honest content:** MediCare Plus and mėntality are concepts and never featured as client work; the home page's selected work shows only client projects (verified in the browser). Migration `0005` corrects existing databases once ([`32-step3-seed-honesty.txt`](security/audit-v2/32-step3-seed-honesty.txt)).
+- **Legacy:** the v1 site moved to `legacy/`; `netlify.toml` declares the pinned Next.js runtime and publishes only `frontend/`.
 - **Dependencies:** Dependabot runs weekly for pip, npm and GitHub Actions.
+- **Real production image, end to end** ([`24-prod-image-rehearsal.txt`](security/audit-v2/24-prod-image-rehearsal.txt)). The `prod` Dockerfile stage now builds; earlier, PyPI timeouts had blocked it.
+  - Against a TLS Postgres 16, the Render release command migrated as the owner.
+  - The image then ran as the non-root `app` user with read-only code, connected as `adyraforge_app` over **TLSv1.3**, and reported healthy via the Docker health check.
+  - `prod_probe.py` passed **50/50** against it ([`19-prod-probe.txt`](security/audit-v2/19-prod-probe.txt)). Re-run on 2026-10-14 at `7e7a15c`: again 50/50, with the private storage resolving to `S3Storage` (presigned, 60 s).
 - **Production checks:** [`security/scripts/prod_smoke.sh`](security/scripts/prod_smoke.sh) covers headers, exposure, errors, CORS, cookies, the proxy rate limit and the tunnel; run it against the deployed domains.
 
 ## Reproducing

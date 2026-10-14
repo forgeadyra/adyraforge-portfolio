@@ -1,3 +1,18 @@
-$ python manage.py check --deploy --fail-level WARNING   (production settings, HEAD ab15334)
+$ python manage.py check --deploy --fail-level WARNING   (prod image adyraforge-backend:prod at 7e7a15c; DJANGO_ENV=production, full env validation; DATABASE_URL with sslmode=require: check does not connect)
 System check identified no issues (0 silenced).
 exit=0
+
+$ (same) but DATABASE_URL WITHOUT sslmode: must refuse to boot
+django.core.exceptions.ImproperlyConfigured: Refusing to start in production:
+- DATABASE_URL must set sslmode=require (or verify-ca / verify-full).
+exit=1
+
+$ (same) but PRIVATE_BUCKET and STORAGE_SECRET_ACCESS_KEY unset: must refuse to boot
+django.core.exceptions.ImproperlyConfigured: Refusing to start in production:
+- PRIVATE_BUCKET is missing (uploads must not live on the container disk).
+- STORAGE_SECRET_ACCESS_KEY is missing (uploads must not live on the container disk).
+exit=1
+
+$ python -c '<effective production settings>'
+
+DEBUG = False | ADMIN_URL is admin/ -> False | len(ADMIN_URL) = 29 | TRUSTED_PROXY_COUNT = 1 | NUM_PROXIES = 1 | SECURE_SSL_REDIRECT = True | private storage = storages.backends.s3.S3Storage

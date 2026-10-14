@@ -1,4 +1,4 @@
-$ bandit -r backend ml -x backend/tests -f txt
+$ bandit -r backend ml -x backend/tests   (HEAD 7e7a15c)
 bandit 1.9.4
 [main]	INFO	profile include tests: None
 [main]	INFO	profile exclude tests: None
@@ -6,7 +6,7 @@ bandit 1.9.4
 [main]	INFO	cli exclude tests: None
 [main]	INFO	running on Python 3.12.15
 Working... ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 100% 0:00:01
-Run started:2026-10-13 15:14:07.683733+00:00
+Run started:2026-10-14 06:12:51.104821+00:00
 
 Test results:
 >> Issue: [B105:hardcoded_password_string] Possible hardcoded password: 'Incorrect password.'
@@ -41,7 +41,7 @@ Test results:
 --------------------------------------------------
 
 Code scanned:
-	Total lines of code: 4626
+	Total lines of code: 4864
 	Total lines skipped (#nosec): 0
 	Total potential issues skipped due to specifically being disabled (e.g., #nosec BXXX): 0
 

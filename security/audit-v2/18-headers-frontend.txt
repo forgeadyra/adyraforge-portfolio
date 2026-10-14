@@ -1,4 +1,4 @@
-Frontend production build (next start, port 3001), headers from frontend/next.config.ts.
+Frontend production build (next start, port 3001, HEAD 7e7a15c), headers from frontend/next.config.ts (netlify.toml carries the identical set; parity enforced by a test).
 
 $ curl -sS -D - -o /dev/null http://localhost:3001/
 HTTP/1.1 200 OK
@@ -15,9 +15,9 @@ x-nextjs-prerender: 1
 x-nextjs-prerender: 1
 x-nextjs-stale-time: 300
 Cache-Control: s-maxage=3600, stale-while-revalidate=31532400
-ETag: "md2vgwvqem17sc"
+ETag: "d2pdd06y42166b"
 Content-Type: text/html; charset=utf-8
-Content-Length: 56796
+Content-Length: 54707
 Connection: keep-alive
 Keep-Alive: timeout=5
 
@@ -37,9 +37,9 @@ x-nextjs-prerender: 1
 x-nextjs-prerender: 1
 x-nextjs-stale-time: 300
 Cache-Control: s-maxage=3600, stale-while-revalidate=31532400
-ETag: "8iyjeh0kmfxrr"
+ETag: "bpl4v1ln4axs4"
 Content-Type: text/html; charset=utf-8
-Content-Length: 43787
+Content-Length: 43800
 Connection: keep-alive
 Keep-Alive: timeout=5
 
@@ -59,9 +59,9 @@ x-nextjs-prerender: 1
 x-nextjs-prerender: 1
 x-nextjs-stale-time: 300
 Cache-Control: s-maxage=31536000
-ETag: "mdynlda71rd6x"
+ETag: "b1o526jqcjd78"
 Content-Type: text/html; charset=utf-8
-Content-Length: 17099
+Content-Length: 17110
 Connection: keep-alive
 Keep-Alive: timeout=5
 
@@ -114,9 +114,9 @@ x-nextjs-cache: HIT
 x-nextjs-prerender: 1
 x-nextjs-prerender: 1
 x-nextjs-stale-time: 300
-ETag: "5l4hawfh2nkfl"
+ETag: "7py0kd02kekfu"
 Content-Type: text/html; charset=utf-8
-Content-Length: 26493
+Content-Length: 26502
 Connection: keep-alive
 Keep-Alive: timeout=5
 

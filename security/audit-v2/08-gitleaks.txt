@@ -1,4 +1,6 @@
+$ gitleaks git --redact -v .   (full history, HEAD 7e7a15c)
 8.30.1
-8:40PM INF 50 commits scanned.
-8:40PM INF scanned ~893648 bytes (893.65 KB) in 437ms
-8:40PM INF no leaks found
+11:43AM INF 68 commits scanned.
+11:43AM INF scanned ~1288057 bytes (1.29 MB) in 423ms
+11:43AM INF no leaks found
+exit=0

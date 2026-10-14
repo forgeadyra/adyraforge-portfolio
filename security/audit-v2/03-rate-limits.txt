@@ -1,9 +1,9 @@
-$ python ratelimit_flood.py   (after clearing throttle cache + axes records)
+$ python ratelimit_flood.py   (HEAD 7e7a15c, 2026-10-14T06:08Z)
 [PASS] login (5/min, random emails): 6 requests -> last is 429 with Retry-After  ->  codes=[400, 400, 400, 400, 400, 429] retry-after=60
 [PASS] contact (5/hour): 6 requests -> last is 429 with Retry-After  ->  codes=[201, 201, 201, 201, 201, 429] retry-after=3600
 [PASS] planner (10/hour): 11 requests -> last is 429 with Retry-After  ->  codes=[201, 201, 201, 201, 201, 201, 201, 201, 201, 201, 429] retry-after=3600
 [PASS] password reset (3/hour): 4 requests -> last is 429 with Retry-After  ->  codes=[202, 202, 202, 429] retry-after=3600
-[PASS] axes: 5th failure locks; right password then refused (429)  ->  codes=[400, 400, 400, 400, 429] then 429
+[PASS] axes: 5th failure locks; right password then refused (429)  ->  codes=[429, 429, 429, 429, 429] then 429
 [PASS] axes lockout response has no wildcard CORS  ->  None
 
 0 failure(s)

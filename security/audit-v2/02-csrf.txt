@@ -1,4 +1,4 @@
-$ python csrf_check.py
+$ python csrf_check.py   (HEAD 7e7a15c, 2026-10-14T06:08Z)
 [PASS] POST message without X-CSRFToken -> 403  ->  403 {"detail":"CSRF Failed: CSRF token missing."}
 [PASS] POST message with forged token -> 403  ->  403
 [PASS] POST with valid token but evil Origin -> 403  ->  403

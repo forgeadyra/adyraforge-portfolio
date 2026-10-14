@@ -1,8 +1,8 @@
-$ deptry . --requirements-files requirements/base.in --requirements-files-dev requirements/dev.in --known-first-party apps,config,adyra_ml  (run on a copy of backend/ without pyproject.toml: its [project] table makes deptry ignore requirements files)
+$ deptry . --requirements-files requirements/base.in --requirements-files-dev requirements/dev.in --known-first-party apps,config,adyra_ml   (HEAD 7e7a15c; on a copy of backend/ without pyproject.toml, whose [project] table makes deptry ignore requirements files)
 deptry 0.25.1
 /usr/local/lib/python3.12/site-packages/deptry/dependency_getter/requirements_files.py:74: UserWarning: Unused option -c (constraint). Skipping.
   for requirement in requirements.parse(requirements_file_content):
-Scanning 78 files...
+Scanning 81 files...
 
 apps/recommender/services.py:5:1: DEP003 'adyra_ml' imported but it is a transitive dependency
 requirements/base.in: DEP002 'argon2-cffi' defined as a dependency but not used in the codebase
@@ -11,17 +11,19 @@ requirements/base.in: DEP002 'django-cors-headers' defined as a dependency but n
 requirements/base.in: DEP002 'django-axes' defined as a dependency but not used in the codebase
 requirements/base.in: DEP002 'whitenoise' defined as a dependency but not used in the codebase
 requirements/base.in: DEP002 'gunicorn' defined as a dependency but not used in the codebase
-Found 7 dependency issues.
+requirements/base.in: DEP002 'django-storages' defined as a dependency but not used in the codebase
+Found 8 dependency issues.
 
 For more information, see the documentation: https://deptry.com/
 exit=1
 
 --- triage (manual): every hit is loaded by dotted string or CLI, which static import analysis cannot see ---
-adyra_ml            : first-party monorepo package /ml on PYTHONPATH=/app/ml (Dockerfile) -> not a pip dependency, false positive
-argon2-cffi         : settings PASSWORD_HASHERS "django.contrib.auth.hashers.Argon2PasswordHasher" (base.py:111) -> used
-psycopg             : DATABASES ENGINE django.db.backends.postgresql (base.py:100) -> used
-django-cors-headers : INSTALLED_APPS "corsheaders" + CorsMiddleware (base.py:48,67) -> used
-django-axes         : INSTALLED_APPS "axes", AxesMiddleware, AxesStandaloneBackend (base.py:50,77,125) -> used
-whitenoise          : WhiteNoiseMiddleware (base.py:65) + STORAGES in production.py -> used
-gunicorn            : production CMD in backend/Dockerfile:37 -> used
+adyra_ml            : first-party monorepo package /ml on PYTHONPATH=/app/ml (Dockerfile) -> not a pip dependency
+argon2-cffi         : PASSWORD_HASHERS "django.contrib.auth.hashers.Argon2PasswordHasher" (settings/base.py) -> used
+psycopg             : DATABASES ENGINE django.db.backends.postgresql -> used
+django-cors-headers : INSTALLED_APPS "corsheaders" + CorsMiddleware -> used
+django-axes         : INSTALLED_APPS "axes", AxesMiddleware, AxesStandaloneBackend -> used
+whitenoise          : WhiteNoiseMiddleware + STORAGES["staticfiles"] in production.py -> used
+gunicorn            : production CMD in backend/Dockerfile -> used
+django-storages     : STORAGES BACKEND "storages.backends.s3.S3Storage" in production.py -> used
 Unused dependencies: none. Missing (imported but undeclared) dependencies: none.

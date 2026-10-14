@@ -1,16 +1,16 @@
-XSS execution check in a real browser (Claude in-app Chromium), 2026-10-13, dev stack.
+XSS execution check in a real browser (Claude desktop built-in Chromium), 2026-10-14T06:10Z, dev stack, HEAD 7e7a15c.
 Payloads seeded by security/scripts/xss_seed.py; each sets window.__xss if it ever executes.
 After load (and scrolling to the bottom so lazy sections render), the page was queried with:
   ({ page: location.pathname, xss: window.__xss ?? null, ... })
 
 Raw results returned by the browser:
 
-/work/xss-probe   {"escapedVisible": true, "h1": "<img src=x onerror=\"window.__xss='img'\">", "page": "/work/xss-probe", "xss": null}
+/work/xss-probe   {"h1": "<img src=x onerror=\"window.__xss='img'\">", "injectedImg": 0, "page": "/work/xss-probe", "xss": null}
 /                 {"page": "/", "xss": null}
 /work             {"page": "/work", "xss": null}
 /services         {"page": "/services", "xss": null}
-/portal/projects/3/messages  (as client alice)
+/portal/projects/3/messages  (as throwaway client audit.alice, dev session)
                   {"imgElementsFromPayload": 0, "page": "/portal/projects/3/messages", "payloadShownAsText": true, "xss": null}
 
 Result: no payload executed on any page; payloads render as literal text (React escaping,
-JSON-LD "<" escaped). document.title also shows the payload, but titles are text, not HTML.
+JSON-LD "<" escaped). The dev session cookie was removed from the browser afterwards.

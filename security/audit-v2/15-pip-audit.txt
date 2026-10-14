@@ -1,6 +1,6 @@
-$ pip-audit --strict --cache-dir /tmp/pip-audit-cache -r requirements/base.txt
+$ pip-audit --strict --cache-dir /tmp/pip-audit-cache -r requirements/base.txt   (HEAD 7e7a15c)
 No known vulnerabilities found
 exit=0
-$ pip-audit --strict --cache-dir /tmp/pip-audit-cache -r requirements/dev.txt
+$ pip-audit --strict --cache-dir /tmp/pip-audit-cache -r requirements/dev.txt   (HEAD 7e7a15c)
 No known vulnerabilities found
 exit=0

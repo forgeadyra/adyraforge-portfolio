@@ -1,4 +1,4 @@
-$ python upload_attack.py   (after fix M-2)
+$ python upload_attack.py   (HEAD 7e7a15c, 2026-10-14T06:08Z)
 == private client documents (ProjectFile) ==
 [PASS] rejected: PHP script ('shell.php')  ->  200 This file type is not allowed.
 [PASS] rejected: PDF magic but .php extension ('shell.pdf.php')  ->  200 The file extension does not match its contents.
@@ -14,9 +14,9 @@ $ python upload_attack.py   (after fix M-2)
 [PASS] rejected: SVG avatar  ->  200
 [PASS] rejected: HTML as .png  ->  200
 real PNG + appended PHP/JS polyglot -> 302 (302 = stored)
-stored at: http://localhost:8000/media/testimonials/b59f3d074bb04c1c81abbae3148edb5d.png
+stored at: http://localhost:8000/media/testimonials/cc8e78869587402f925085fd8d6f913e.png
 [PASS] stored public image no longer contains the PHP/JS payload  ->  69 bytes, payload present=False
-[PASS] stored file name is a UUID, not the uploaded name  ->  http://localhost:8000/media/testimonials/b59f3d074bb04c1c81abbae3148edb5d.png
+[PASS] stored file name is a UUID, not the uploaded name  ->  http://localhost:8000/media/testimonials/cc8e78869587402f925085fd8d6f913e.png
 
 0 failure(s)
 exit=0

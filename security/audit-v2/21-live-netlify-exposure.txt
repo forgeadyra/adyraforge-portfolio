@@ -1,10 +1,8 @@
-Live site re-probe, 2026-10-13T15:46Z. Read-only GETs. Fix is ready on local branch fix/netlify-publish-v1-only (not pushed: needs approval).
+Live site re-probe, 2026-10-14T06:15Z. Read-only GETs. Live adyraforge.netlify.app still publishes main's repo root; v2/foundation (with netlify.toml base=frontend) is not on main yet.
 /                                        -> 200 52273B
 /CLAUDE.md                               -> 200 5370B
 /SECURITY_AUDIT_V1.md                    -> 200 9123B
 /backend/config/settings/base.py         -> 200 11758B
-/backend/.env.example                    -> 404 3775B
-/.env                                    -> 404 3775B
 /docker-compose.yml                      -> 200 1739B
-/security/scripts/audit_common.py        -> 404 3775B
-/.github/workflows/ci.yml                -> 404 3775B
+/.env                                    -> 404 3775B
+/backend/.env.example                    -> 404 3775B

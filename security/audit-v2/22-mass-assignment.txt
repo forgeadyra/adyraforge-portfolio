@@ -1,9 +1,9 @@
-$ python mass_assign.py
+$ python mass_assign.py   (HEAD 7e7a15c, 2026-10-14T06:08Z)
 [PASS] message create with extra fields -> 201  ->  201
 [PASS] message stays in alice's project (client_project ignored)  ->  3
 [PASS] sender is alice (sender ignored)  ->  audit.alice@example.test
-[PASS] server-set timestamps (created_at/read_at ignored)  ->  created_at=2026-10-13T15:48:06.224340Z read_at=None
-[PASS] id not chosen by client  ->  8
+[PASS] server-set timestamps (created_at/read_at ignored)  ->  created_at=2026-10-14T06:08:23.023215Z read_at=None
+[PASS] id not chosen by client  ->  10
 [PASS] nothing landed in bob's thread  ->  ['private note from bob']
 [PASS] PATCH with body/client_project only marks read  ->  200 body='API3 probe'
 [PASS] PATCH /api/auth/me/ is not allowed  ->  405

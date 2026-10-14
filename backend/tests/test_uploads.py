@@ -64,8 +64,8 @@ def test_weird_extensions_are_dropped() -> None:
 
 
 def test_private_storage_is_outside_public_media_and_has_no_url() -> None:
-    private = Path(private_storage.location).resolve()
+    private = Path(private_storage().location).resolve()
     public = Path(settings.MEDIA_ROOT).resolve()
     assert private != public and public not in private.parents
     with pytest.raises(NotImplementedError):
-        private_storage.url("client-files/abc.pdf")
+        private_storage().url("client-files/abc.pdf")

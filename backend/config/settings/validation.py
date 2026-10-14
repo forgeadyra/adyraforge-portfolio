@@ -59,6 +59,11 @@ def validate_production_settings(
     email_use_ssl: bool,
     turnstile_secret: str,
     trusted_proxy_count: str,
+    private_bucket: str,
+    media_bucket: str,
+    media_url: str,
+    storage_access_key_id: str,
+    storage_secret_access_key: str,
 ) -> None:
     """Raise ImproperlyConfigured listing every problem found."""
     errors: list[str] = []
@@ -122,6 +127,19 @@ def validate_production_settings(
             f"TRUSTED_PROXY_COUNT must be set explicitly (0-{MAX_TRUSTED_PROXY_COUNT}); "
             "Render is 1."
         )
+
+    for name, value in (
+        ("PRIVATE_BUCKET", private_bucket),
+        ("MEDIA_BUCKET", media_bucket),
+        ("STORAGE_ACCESS_KEY_ID", storage_access_key_id),
+        ("STORAGE_SECRET_ACCESS_KEY", storage_secret_access_key),
+    ):
+        if not value:
+            errors.append(f"{name} is missing (uploads must not live on the container disk).")
+    if private_bucket and private_bucket == media_bucket:
+        errors.append("PRIVATE_BUCKET must differ from the public MEDIA_BUCKET.")
+    if not media_url.startswith("https://"):
+        errors.append("MEDIA_URL must be the https:// public origin of MEDIA_BUCKET.")
 
     if errors:
         raise ImproperlyConfigured("Refusing to start in production:\n- " + "\n- ".join(errors))

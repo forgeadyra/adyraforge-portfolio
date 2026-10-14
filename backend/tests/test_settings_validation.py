@@ -32,6 +32,11 @@ def good_settings(**overrides: Any) -> dict[str, Any]:
         "email_use_ssl": False,
         "turnstile_secret": "0x4AAAAAAA" + "realistic-secret-value",
         "trusted_proxy_count": "1",
+        "private_bucket": "adyraforge-private",
+        "media_bucket": "adyraforge-media",
+        "media_url": "https://media.adyraforge.com/",
+        "storage_access_key_id": "placeholder-key-id",
+        "storage_secret_access_key": "placeholder-not-real",
     }
     values.update(overrides)
     return values
@@ -76,6 +81,13 @@ def test_valid_production_settings_pass() -> None:
         ({"trusted_proxy_count": "-1"}, "TRUSTED_PROXY_COUNT must be set"),
         ({"trusted_proxy_count": "one"}, "TRUSTED_PROXY_COUNT must be set"),
         ({"trusted_proxy_count": "9"}, "TRUSTED_PROXY_COUNT must be set"),
+        ({"private_bucket": ""}, "PRIVATE_BUCKET is missing"),
+        ({"media_bucket": ""}, "MEDIA_BUCKET is missing"),
+        ({"storage_access_key_id": ""}, "STORAGE_ACCESS_KEY_ID is missing"),
+        ({"storage_secret_access_key": ""}, "STORAGE_SECRET_ACCESS_KEY is missing"),
+        ({"media_bucket": "adyraforge-private"}, "must differ"),
+        ({"media_url": "http://media.adyraforge.com/"}, "MEDIA_URL must be"),
+        ({"media_url": "/media/"}, "MEDIA_URL must be"),
     ],
 )
 def test_insecure_production_settings_are_rejected(overrides: dict[str, Any], message: str) -> None:
@@ -119,6 +131,13 @@ PROD_ENV = {
     "EMAIL_HOST_PASSWORD": "placeholder-not-real",
     "TURNSTILE_SECRET_KEY": "0x4AAAAAAA" + "realistic-secret-value",
     "TRUSTED_PROXY_COUNT": "1",
+    "PRIVATE_BUCKET": "adyraforge-private",
+    "MEDIA_BUCKET": "adyraforge-media",
+    "MEDIA_URL": "https://media.adyraforge.com/",
+    "STORAGE_ACCESS_KEY_ID": "placeholder-key-id",
+    "STORAGE_SECRET_ACCESS_KEY": "placeholder-not-real",
+    "STORAGE_ENDPOINT_URL": "https://example-account.r2.cloudflarestorage.com",
+    "STORAGE_REGION": "auto",
 }
 
 
@@ -155,7 +174,8 @@ def test_secret_key_starting_with_dollar_is_used_verbatim() -> None:
 
 
 @pytest.mark.parametrize(
-    "missing", ["SECRET_KEY", "ALLOWED_HOSTS", "DATABASE_URL", "TRUSTED_PROXY_COUNT"]
+    "missing",
+    ["SECRET_KEY", "ALLOWED_HOSTS", "DATABASE_URL", "TRUSTED_PROXY_COUNT", "PRIVATE_BUCKET"],
 )
 def test_production_refuses_to_boot_without_required_env(missing: str) -> None:
     env = {k: v for k, v in PROD_ENV.items() if k != missing}
@@ -170,3 +190,26 @@ def test_unset_django_env_means_production() -> None:
     result = _boot(env)
     assert result.returncode != 0
     assert "Refusing to start in production" in result.stderr
+
+
+def test_production_uploads_go_to_buckets_never_the_container_disk() -> None:
+    result = subprocess.run(
+        [sys.executable, "-c",
+         "import django; django.setup(); from django.conf import settings as s;"
+         "print(s.STORAGES['private']['BACKEND'], s.STORAGES['default']['BACKEND'],"
+         " s.STORAGES['private']['OPTIONS']['querystring_auth'],"
+         " s.STORAGES['default']['OPTIONS']['querystring_auth'],"
+         " s.STORAGES['private']['OPTIONS']['bucket_name'])"],
+        cwd=BACKEND_DIR,
+        env={**{k: v for k, v in os.environ.items() if k in {"PATH", "SYSTEMROOT", "HOME"}},
+             **PROD_ENV, "DJANGO_SETTINGS_MODULE": "config.settings"},
+        capture_output=True, text=True, timeout=60, check=False,
+    )  # fmt: skip
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.split() == [
+        "storages.backends.s3.S3Storage",
+        "storages.backends.s3.S3Storage",
+        "True",  # private: presigned URLs only
+        "False",  # public media: plain URLs on the media domain
+        "adyraforge-private",
+    ]

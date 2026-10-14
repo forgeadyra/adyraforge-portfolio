@@ -8,10 +8,9 @@ The API runs on Render (Docker, gunicorn, whitenoise) at `api.adyraforge.com`, t
 
 | Blocker | Why | Status |
 |---|---|---|
-| **Media storage** (SECURITY_AUDIT_V2 M-5) | Production keeps uploads on the container disk, and Render wipes it on every deploy. Client files and invoices would be lost | **Needs your choice:** Cloudinary (authenticated assets) or S3 (private bucket + presigned URLs). Until then, upload no client files in production |
 | **Live repo exposure** (M-4) | `adyraforge.netlify.app` serves `CLAUDE.md`, settings source, etc. from `main` today | This repo's `netlify.toml` (base `frontend`) fixes it at cutover. `fix/netlify-publish-v1-only` fixes it sooner. Both need a push to `main`, which needs your OK |
 
-Order: **Neon → Render → DNS for `api.` → Netlify → DNS for apex → Sentry / UptimeRobot → smoke checks.** The frontend build fetches content from the live API, so the API must be up first.
+Order: **Neon → storage buckets → Render → DNS for `api.` → Netlify → DNS for apex → Sentry / UptimeRobot → smoke checks.** The frontend build fetches content from the live API, so the API must be up first.
 
 ## 1. Neon (PostgreSQL)
 
@@ -26,15 +25,32 @@ Order: **Neon → Render → DNS for `api.` → Netlify → DNS for apex → Sen
    This exact scheme was rehearsed on Postgres 16 ([`security/audit-v2/23-least-privilege-db.txt`](security/audit-v2/23-least-privilege-db.txt)): owner migrations succeed; the app role does CRUD, cache and sessions; and `CREATE TABLE`, `DROP`, `ALTER`, `TRUNCATE` and `CREATE ROLE` are all refused.
 4. **Backups.** Neon keeps point-in-time history automatically. In **Settings → Storage → History retention**, set the longest your plan allows (7 days on Launch). For anything older, see "Off-site dump" in §9.
 
+## 1b. Storage buckets (Cloudflare R2, or AWS S3)
+
+Uploads never touch the container disk (Render wipes it on every deploy). Production refuses to boot without both buckets.
+
+| Bucket | Holds | Access |
+|---|---|---|
+| `adyraforge-private` (`PRIVATE_BUCKET`) | client files, invoices | **No public access at all.** The API releases a file only after the per-user signed link and ownership check pass, as a 302 to a presigned URL valid for **60 s** that forces a download |
+| `adyraforge-media` (`MEDIA_BUCKET`) | public images (re-encoded, metadata stripped) | Public read through the custom domain `media.adyraforge.com` (`MEDIA_URL`) |
+
+**Cloudflare R2** (recommended: S3-compatible, no egress fees, native custom domain):
+1. R2 → *Create bucket* twice: `adyraforge-private` and `adyraforge-media`, location near Singapore (APAC).
+2. On `adyraforge-media` only: *Settings → Custom Domains → Connect* `media.adyraforge.com`. Leave *Public access* off on `adyraforge-private` (the default), and never enable its r2.dev URL.
+3. *Manage R2 API tokens → Create API token*: **Object Read & Write**, **scoped to these two buckets only**. Put the Access Key ID / Secret in Render as `STORAGE_ACCESS_KEY_ID` / `STORAGE_SECRET_ACCESS_KEY`, and the S3 endpoint `https://<account-id>.r2.cloudflarestorage.com` as `STORAGE_ENDPOINT_URL`. `STORAGE_REGION=auto` is preset.
+4. Check: opening `https://<account-id>.r2.cloudflarestorage.com/adyraforge-private/<any key>` without a signature must return an error (no listing, no object).
+
+**AWS S3** instead: two buckets with *Block all public access* on the private one, CloudFront (or a public-read policy) for the media one, an IAM user limited to `s3:GetObject/PutObject/DeleteObject` on both, leave `STORAGE_ENDPOINT_URL` empty and set `STORAGE_REGION` to the bucket region.
+
 ## 2. Render (API)
 
-1. **New → Blueprint** → this repo → it reads [`render.yaml`](render.yaml). This creates the `adyraforge-api` Docker service on the paid Starter plan, which is needed for the release command.
+1. **New → Blueprint** → this repo → it reads [`render.yaml`](render.yaml). This creates the env group `adyraforge-prod` (enter each secret once), the `adyraforge-api` Docker web service (Starter, needed for the release command) and the `adyraforge-clearsessions` cron job (daily 03:30 UTC, `manage.py clearsessions`).
    - Build: `backend/Dockerfile`, last stage `prod`. Hash-pinned dependencies, read-only code, non-root user.
    - Start: `collectstatic` (whitenoise serves static files), then `gunicorn config.wsgi --workers $WEB_CONCURRENCY`.
    - **Release command** (`preDeployCommand`): `migrate` then `createcachetable`, as the owner. A failed migration aborts the deploy, and the old version keeps serving.
-   - **Health check:** `/healthz/` (answered before Host validation, no DB).
+   - **Health check:** `/api/health` (answered before Host validation, no DB).
    - `autoDeploy: false`: you deploy deliberately.
-2. **Environment variables.** Already set by `render.yaml` (no action):
+2. **Environment variables** (env group `adyraforge-prod`). Already set by `render.yaml` (no action):
 
    | Variable | Value |
    |---|---|
@@ -44,7 +60,9 @@ Order: **Neon → Render → DNS for `api.` → Netlify → DNS for apex → Sen
    | `CORS_ALLOWED_ORIGINS`, `CSRF_TRUSTED_ORIGINS`, `FRONTEND_URL` | `https://adyraforge.com` |
    | `SESSION_COOKIE_DOMAIN` | `.adyraforge.com` |
    | `EMAIL_PORT` / `EMAIL_USE_TLS` | `587` / `True` |
-   | `WEB_CONCURRENCY` | `2` |
+   | `WEB_CONCURRENCY` | `2` (web service only) |
+   | `MEDIA_URL` | `https://media.adyraforge.com/` |
+   | `STORAGE_REGION` | `auto` (R2) |
 
    **You enter these** in the dashboard:
 
@@ -61,6 +79,9 @@ Order: **Neon → Render → DNS for `api.` → Netlify → DNS for apex → Sen
    | `DEFAULT_FROM_EMAIL` | `AdyraForge <hello@adyraforge.com>` | |
    | `LEAD_NOTIFY_EMAIL` | where new-lead alerts go | |
    | `SENTRY_DSN` | the Django project's DSN | §5 (optional, recommended) |
+   | `STORAGE_ENDPOINT_URL` | `https://<account-id>.r2.cloudflarestorage.com` | §1b (empty for AWS) |
+   | `STORAGE_ACCESS_KEY_ID` / `STORAGE_SECRET_ACCESS_KEY` | bucket-scoped R2 token | §1b |
+   | `PRIVATE_BUCKET` / `MEDIA_BUCKET` | `adyraforge-private` / `adyraforge-media` | §1b |
 
    A missing or weak required value stops the boot with `ImproperlyConfigured`. The log names the variable, never its value.
 3. **Deploy.** The build log must show `pip install --require-hashes` succeeding; the release log shows the migrations.
@@ -73,7 +94,7 @@ Order: **Neon → Render → DNS for `api.` → Netlify → DNS for apex → Sen
    ```
    Then add your TOTP device (README → "Admin account and 2FA"). The admin is only at `https://api.adyraforge.com/<ADMIN_URL>`.
 5. **Settings → Custom Domains:** add `api.adyraforge.com`, create the DNS record from §4, and wait for the certificate.
-6. Optional: a Render Cron Job running `python manage.py clearsessions` daily.
+6. The `adyraforge-clearsessions` cron purges expired sessions daily. Check its first run in *Logs*.
 
 ## 3. Netlify (frontend)
 
@@ -90,7 +111,7 @@ Order: **Neon → Render → DNS for `api.` → Netlify → DNS for apex → Sen
    | `NEXT_PUBLIC_SENTRY_DSN` | the Next.js project's DSN (§5). A DSN identifies a project; it is not a secret |
 
 3. Deploy, then **Domain management:** add `adyraforge.com` (primary) and `www.adyraforge.com`. Use **HTTPS → Verify DNS / Provision certificate**. Netlify forces HTTPS once the certificate exists.
-4. Media origin: when §0's storage decision is made, add that CDN origin to `img-src` in both `next.config.ts` and `netlify.toml`. The parity test keeps them in step.
+4. `NEXT_PUBLIC_MEDIA_URL=https://media.adyraforge.com` is set in `netlify.toml`, and that origin is in the CSP `img-src` and `next/image` remote patterns.
 
 ## 4. DNS
 
@@ -101,6 +122,7 @@ At your registrar, or move the zone to Netlify DNS:
 | `adyraforge.com` | `A` | `75.2.60.5` (Netlify load balancer) | Or ALIAS/ANAME to `<site>.netlify.app` if supported |
 | `www` | `CNAME` | `<site>.netlify.app` | Redirected to apex by `netlify.toml` |
 | `api` | `CNAME` | `adyraforge-api.onrender.com` (exact host from Render) | Render issues the certificate |
+| `media` | (set by R2) | added automatically when you connect the custom domain in R2 (zone on Cloudflare) | public images only |
 | `adyraforge.com` | `CAA` | `0 issue "letsencrypt.org"` | Optional. Both Netlify and Render use Let's Encrypt |
 
 **Force HTTPS:**

@@ -1,17 +1,17 @@
 import os
 
 from django.conf import settings
-from django.core.files.storage import FileSystemStorage
+from django.core.files.storage import FileSystemStorage, Storage, storages
 from django.utils.deconstruct import deconstructible
 
 
 @deconstructible
 class PrivateMediaStorage(FileSystemStorage):
-    """Client files and invoices: outside MEDIA_ROOT, never given a public URL.
+    """Development/test backend for client files and invoices.
 
-    Files are only reachable through an authorised view that checks ownership
-    and issues a short-lived signed URL (API phase). Swap for a private
-    S3/Cloudinary bucket in production.
+    Outside MEDIA_ROOT and never given a public URL: files are only reachable through
+    the ownership-checked signed download view, which streams them. Production uses a
+    private S3-compatible bucket instead (settings STORAGES["private"]).
     """
 
     @property  # type: ignore[override]
@@ -26,4 +26,15 @@ class PrivateMediaStorage(FileSystemStorage):
         raise NotImplementedError("Private files have no public URL; use a signed download view.")
 
 
-private_storage = PrivateMediaStorage()
+def private_storage() -> Storage:
+    """Storage for client files and invoices, chosen per environment via STORAGES["private"].
+
+    A callable keeps migrations independent of the backend: filesystem locally, a
+    private bucket (presigned URLs only) in production.
+    """
+    return storages["private"]
+
+
+def presigns_urls(storage: Storage) -> bool:
+    """True for a private bucket backend that hands out expiring signed URLs."""
+    return bool(getattr(storage, "querystring_auth", False))

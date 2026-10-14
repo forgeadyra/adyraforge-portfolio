@@ -7,7 +7,7 @@ Project rules live in [CLAUDE.md](CLAUDE.md); read them before changing anything
 frontend/   Next.js 15 (App Router, TypeScript strict, Tailwind v4)        → Netlify
 backend/    Django 5.2 + DRF, Python 3.12, PostgreSQL, session auth          → Render / Railway
 ml/         recommender package (adyra_ml), imported by the backend
-index.html  v1 static site (still what adyraforge.netlify.app serves; see "Deploying")
+legacy/     v1 static site (index.html), kept for reference; never deployed by netlify.toml
 ```
 
 ## Prerequisites
@@ -120,6 +120,9 @@ Git hooks (gitleaks, ruff, black, eslint, prettier): `pre-commit install`.
 | `SESSION_COOKIE_DOMAIN` | `.adyraforge.com`, so Next middleware on adyraforge.com sees the session cookie |
 | `CACHE_URL` | optional; defaults to `dbcache://django_cache` |
 | `SENTRY_DSN` | optional. Error monitoring with all data collection off and an extra scrubber (`apps/core/monitoring.py`). |
+| `PRIVATE_BUCKET`, `MEDIA_BUCKET` | S3-compatible buckets (Cloudflare R2 or AWS S3). Private: client files and invoices, released only as 60-second presigned URLs after the signed-link ownership check. Media: public images. Must differ. |
+| `MEDIA_URL` | `https://` public origin of `MEDIA_BUCKET` (e.g. `https://media.adyraforge.com/`) |
+| `STORAGE_ACCESS_KEY_ID`, `STORAGE_SECRET_ACCESS_KEY`, `STORAGE_ENDPOINT_URL`, `STORAGE_REGION` | bucket credentials (scoped to the two buckets); endpoint empty for AWS |
 
 Production refuses to boot (`ImproperlyConfigured`) if any of these is missing or insecure.
 
@@ -200,7 +203,7 @@ Sessions: login rotates the session key and CSRF token, and sessions last at mos
 
 ## Deploying
 
-> **Do not push this to `main` yet.** Netlify currently publishes the repo root (the v1 `index.html`). Pushing as-is would publish `backend/`, `CLAUDE.md`, `SECURITY_AUDIT_V1.md` and everything else at `adyraforge.netlify.app/...`. First change the Netlify site to base directory `frontend`, or move v1 elsewhere.
+> The repo-root `netlify.toml` builds and publishes **only** `frontend/` (base directory), so no other file (`backend/`, `CLAUDE.md`, `security/`, `legacy/`) can be served. Until this branch reaches `main`, the live site still serves `main`'s repo root (SECURITY_AUDIT_V2 M-4).
 
 - Step-by-step runbook: [`DEPLOY.md`](DEPLOY.md). Render blueprint: [`render.yaml`](render.yaml). Netlify build for v2: [`netlify.toml`](netlify.toml) (base directory `frontend`).
 - Backend image: `docker build -f backend/Dockerfile --target prod .`. It runs `collectstatic` on start, then gunicorn on `$PORT`. Run `migrate` and `createcachetable` as the platform's release / pre-deploy command.
@@ -212,9 +215,7 @@ Sessions: login rotates the session key and CSRF token, and sessions last at mos
 - **L'Atelier de Gastronomie's live URL is gone.** `phenomenal-belekoy-881bf4.netlify.app` returned Netlify's 404 page on 2026-10-13, so the seed marks it `not_live` with no link. The v1 site still links to it.
 - **3D init on desktop** is one ~230 ms task about a second after load. If real-user INP data shows clicks landing in it, load the scene on first pointer movement instead of on idle.
 - **Admin dashboard frontend.** The OTP-gated `/api/admin/*` endpoints exist; the custom dashboard UI doesn't yet. The Django admin works today.
-- **Revoked sessions linger as rows** until they expire (they can no longer authenticate). Schedule `manage.py clearsessions` daily in production.
 
-- **Private file storage in production.** Downloads already go through ownership-checked, 5-minute signed links (`apps/clients/downloads.py`), served from local private storage. Before launch, choose a private S3 bucket or Cloudinary authenticated assets and swap that module for presigned URLs.
 - **Deleting a `ProjectFile` row leaves the stored file on disk.** Whether deletion should also erase the file, or keep it for records, is a data-retention decision for you.
 - **Budget bands** in `leads.BudgetRange` are placeholders. Adjust them to your real pricing.
 

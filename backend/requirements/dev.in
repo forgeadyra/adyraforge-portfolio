@@ -10,3 +10,4 @@ pip-audit
 pip-tools
 bandit
 deptry
+moto[s3]

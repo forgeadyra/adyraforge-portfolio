@@ -287,8 +287,14 @@ PRIVATE_MEDIA_ROOT = env.path("PRIVATE_MEDIA_ROOT", default=str(BASE_DIR / "priv
 
 STORAGES = {
     "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
+    # Client files and invoices (apps.core.storage.private_storage). Production: a
+    # private bucket with presigned URLs (production.py).
+    "private": {"BACKEND": "apps.core.storage.PrivateMediaStorage"},
     "staticfiles": {"BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"},
 }
+# Lifetime of a presigned bucket URL handed out by the signed download view. Short:
+# it is issued only after the per-user, ownership-checked link has been verified.
+PRIVATE_URL_EXPIRE = 60
 
 # --- Logging (rule 14): no request bodies, cookies or credentials -------------
 LOGGING = {

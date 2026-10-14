@@ -1,0 +1,19 @@
+$ AUDIT_S3=http://af-s3:8333 python bucket_live_check.py   (real S3-compatible server: SeaweedFS, version 30GB 4.48 530be3e37 linux amd64; SigV4 auth enforced, no anonymous identity; production S3Storage options; random local credentials)
+== the bucket itself ==
+[PASS] anonymous GET of an object is refused  ->  403
+[PASS] anonymous bucket listing is refused  ->  403
+[PASS] presigned URL serves the exact bytes  ->  200 35B
+[PASS] served as an attachment, not inline  ->  attachment; filename="x.pdf"
+[PASS] X-Amz-Expires is 60 s
+[PASS] tampered signature is refused  ->  403
+[PASS] extending X-Amz-Expires invalidates the signature  ->  403
+[PASS] expired presigned URL is refused  ->  403
+
+== end to end through the Django download view ==
+[PASS] owner: signed link -> 302 to the bucket  ->  302
+[PASS] following the redirect downloads the file  ->  200
+[PASS] another client with the same link: 404, no bucket URL  ->  404
+[PASS] another client asking for a link: 404  ->  404
+
+0 failure(s)
+exit=0

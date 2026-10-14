@@ -1,0 +1,14 @@
+Netlify build guard (frontend/src/lib/content.ts), 2026-10-14T06:35Z. Each line is a full 'npm run build' (production).
+(a) API unreachable (https://api.adyraforge.invalid):
+exit=1 :: [cause]: [Error: getaddrinfo ENOTFOUND api.adyraforge.invalid] {
+(b) API answers 404 for everything (local stub):
+exit=1 :: Error: Content API returned 404 for projects/
+(c) API up, zero published projects (local stub):
+exit=1 :: Error: Refusing to ship an empty site: http://localhost:8092/api/public/projects/ returned no published projects.
+(d) real API with published projects (dev backend):
+exit=0 :: 
+(e) CI mode, NEXT_BUILD_WITHOUT_API=1 (never set on Netlify):
+exit=0 :: 
+
+$ grep -c NEXT_BUILD_WITHOUT_API ../netlify.toml
+0

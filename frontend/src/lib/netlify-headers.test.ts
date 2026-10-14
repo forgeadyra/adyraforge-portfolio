@@ -33,3 +33,16 @@ describe("netlify.toml security headers", () => {
     expect(fromNext["Content-Security-Policy"]).toContain("upgrade-insecure-requests");
   });
 });
+
+describe("netlify.toml build", () => {
+  it("never enables the offline build that renders empty pages", () => {
+    const toml = readFileSync(
+      fileURLToPath(new URL("../../../netlify.toml", import.meta.url)),
+      "utf8",
+    );
+    // With this unset, an unreachable API, a 404 list endpoint or an empty project
+    // list fails `next build` (src/lib/content.ts) instead of shipping an empty site.
+    expect(toml).not.toContain("NEXT_BUILD_WITHOUT_API");
+    expect(toml).toMatch(/NEXT_PUBLIC_API_URL = "https:\/\/api\.adyraforge\.com"/);
+  });
+});

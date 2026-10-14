@@ -1,0 +1,4 @@
+$ ruff check --select S --config pyproject.toml . ../ml   (HEAD 7e7a15c)
+ruff 0.17.0
+All checks passed!
+exit=0

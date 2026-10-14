@@ -15,7 +15,7 @@ from tests.files import png
 
 
 def make_project(**kw) -> Project:
-    defaults = {"title": "Demo", "slug": "demo", "status": Project.Status.CONCEPT}
+    defaults = {"title": "Demo", "slug": "demo", "status": Project.Status.NOT_LIVE}
     return Project(**{**defaults, **kw})
 
 
@@ -123,8 +123,8 @@ def test_rich_text_is_sanitized(dirty: str, forbidden: str) -> None:
 
 
 def test_safe_links_keep_href_and_get_rel() -> None:
-    out = sanitize_rich_text('<a href="https://adyraforge.com">x</a>')
-    assert 'href="https://adyraforge.com"' in out
+    out = sanitize_rich_text('<a href="https://adyraforge.netlify.app">x</a>')
+    assert 'href="https://adyraforge.netlify.app"' in out
     assert "noopener" in out
 
 
@@ -136,3 +136,61 @@ def test_blog_body_is_sanitized_on_save_and_published_at_set() -> None:
     post.refresh_from_db()
     assert "<script" not in post.body and "<p>ok</p>" in post.body
     assert post.published_at is not None
+
+
+def test_concept_projects_cannot_name_a_client() -> None:
+    p = make_project(kind=Project.Kind.CONCEPT, client_name="Some Hospital")
+    with pytest.raises(ValidationError) as exc:
+        p.full_clean(validate_unique=False)
+    assert "client_name" in exc.value.message_dict
+    make_project(kind=Project.Kind.CLIENT, client_name="Real Client").full_clean(
+        validate_unique=False
+    )
+
+
+def test_new_projects_default_to_concept_never_overclaiming() -> None:
+    assert Project().kind == Project.Kind.CONCEPT
+
+
+def test_lighthouse_scores_must_be_complete_dated_and_tied_to_a_live_url() -> None:
+    from datetime import date
+
+    partial = make_project(lighthouse_performance=95)
+    with pytest.raises(ValidationError) as exc:
+        partial.full_clean(validate_unique=False)
+    assert "lighthouse_measured_on" in exc.value.message_dict
+
+    full = {
+        "lighthouse_performance": 95,
+        "lighthouse_accessibility": 100,
+        "lighthouse_best_practices": 100,
+        "lighthouse_seo": 100,
+        "lighthouse_measured_on": date(2026, 10, 1),
+    }
+    no_url = make_project(**full)
+    with pytest.raises(ValidationError) as exc:
+        no_url.full_clean(validate_unique=False)
+    assert "live_url" in exc.value.message_dict
+
+    ok = make_project(**full, live_url="https://example.com")
+    ok.full_clean(validate_unique=False)
+    assert ok.lighthouse == {
+        "performance": 95,
+        "accessibility": 100,
+        "best_practices": 100,
+        "seo": 100,
+        "measured_on": date(2026, 10, 1),
+    }
+
+
+def test_lighthouse_scores_are_capped_at_100() -> None:
+    p = make_project(lighthouse_performance=101)
+    with pytest.raises(ValidationError) as exc:
+        p.full_clean(validate_unique=False)
+    assert "lighthouse_performance" in exc.value.message_dict
+
+
+def test_results_note_length_is_capped() -> None:
+    with pytest.raises(ValidationError) as exc:
+        make_project(results_note="x" * 1001).full_clean(validate_unique=False)
+    assert "results_note" in exc.value.message_dict

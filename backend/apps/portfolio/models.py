@@ -3,15 +3,25 @@ from typing import Any
 import nh3
 from django.conf import settings
 from django.core.exceptions import ValidationError
-from django.core.validators import MaxLengthValidator, MinValueValidator, URLValidator
+from django.core.validators import (
+    MaxLengthValidator,
+    MaxValueValidator,
+    MinValueValidator,
+    URLValidator,
+)
 from django.db import models
 from django.db.models import Q
+from django.db.models.signals import pre_save
+from django.dispatch import receiver
 from django.utils import timezone
 
+from apps.core.images import sanitize_new_images, validate_decodable_image
 from apps.core.models import TimeStampedModel
 from apps.core.validators import UUIDUploadTo, image_validator
 
 https_url = URLValidator(schemes=["https"])
+# Public images: allowlisted type + size, and Pillow must be able to decode them.
+PUBLIC_IMAGE_VALIDATORS = [image_validator, validate_decodable_image]
 
 # Rich text allowlist for blog bodies. Everything else (script, style, iframes,
 # event handlers, javascript: URLs) is stripped by nh3.
@@ -111,13 +121,32 @@ class ProjectQuerySet(PublishedQuerySet):
         return self.filter(is_featured=True)
 
 
+def lighthouse_score() -> models.PositiveSmallIntegerField:
+    return models.PositiveSmallIntegerField(
+        null=True, blank=True, validators=[MaxValueValidator(100)]
+    )
+
+
 class Project(TimeStampedModel):
+    class Kind(models.TextChoices):
+        CLIENT = "client", "Client project"
+        CONCEPT = "concept", "Concept"
+
     class Status(models.TextChoices):
         LIVE = "live", "Live"
-        CONCEPT = "concept", "Concept"
+        NOT_LIVE = "not_live", "Not live"
+
+    LIGHTHOUSE_FIELDS = (
+        "lighthouse_performance",
+        "lighthouse_accessibility",
+        "lighthouse_best_practices",
+        "lighthouse_seo",
+    )
 
     title = models.CharField(max_length=150)
     slug = models.SlugField(max_length=150, unique=True)
+    # Concept = not paid client work. Never counted as a client or an industry served.
+    kind = models.CharField(max_length=10, choices=Kind.choices, default=Kind.CONCEPT)
     summary = models.CharField(max_length=300, blank=True, help_text="One-line card text.")
     client_name = models.CharField(max_length=150, blank=True)
     industry = models.CharField(max_length=100, blank=True)
@@ -126,15 +155,27 @@ class Project(TimeStampedModel):
     result_metrics = models.JSONField(
         default=list, blank=True, validators=[validate_result_metrics]
     )
+    results_note = models.TextField(
+        blank=True,
+        validators=[MaxLengthValidator(1000)],
+        help_text="Honest context or limitations for the results (shown on the case study).",
+    )
+    # Real Lighthouse mobile scores of the live site, entered by hand. Shown only
+    # when all four scores and the measurement date are present.
+    lighthouse_performance = lighthouse_score()
+    lighthouse_accessibility = lighthouse_score()
+    lighthouse_best_practices = lighthouse_score()
+    lighthouse_seo = lighthouse_score()
+    lighthouse_measured_on = models.DateField(null=True, blank=True)
     technologies = models.ManyToManyField(Technology, blank=True, related_name="projects")
     services = models.ManyToManyField(Service, blank=True, related_name="projects")
     live_url = models.URLField(blank=True, validators=[https_url])
     repo_url = models.URLField(blank=True, validators=[https_url])
     cover_image = models.ImageField(
-        upload_to=UUIDUploadTo("projects/covers"), blank=True, validators=[image_validator]
+        upload_to=UUIDUploadTo("projects/covers"), blank=True, validators=PUBLIC_IMAGE_VALIDATORS
     )
     cover_alt = models.CharField(max_length=200, blank=True)
-    status = models.CharField(max_length=10, choices=Status.choices, default=Status.CONCEPT)
+    status = models.CharField(max_length=10, choices=Status.choices, default=Status.NOT_LIVE)
     is_featured = models.BooleanField(default=False)
     published = models.BooleanField(default=False)
     order = models.PositiveSmallIntegerField(default=0)
@@ -155,8 +196,25 @@ class Project(TimeStampedModel):
             errors["live_url"] = "A live project needs its live URL."
         if self.cover_image and not self.cover_alt.strip():
             errors["cover_alt"] = "Describe the cover image (alt text) for screen readers."
+        if self.kind == self.Kind.CONCEPT and self.client_name.strip():
+            errors["client_name"] = "Concept projects have no client; leave this empty."
+        scores = [getattr(self, f) for f in self.LIGHTHOUSE_FIELDS]
+        if any(s is not None for s in scores) or self.lighthouse_measured_on:
+            if any(s is None for s in scores) or not self.lighthouse_measured_on:
+                errors["lighthouse_measured_on"] = (
+                    "Enter all four Lighthouse scores and the date they were measured."
+                )
+            if not self.live_url:
+                errors["live_url"] = "Lighthouse scores need the live URL they were measured on."
         if errors:
             raise ValidationError(errors)
+
+    @property
+    def lighthouse(self) -> dict[str, Any] | None:
+        scores = {f.removeprefix("lighthouse_"): getattr(self, f) for f in self.LIGHTHOUSE_FIELDS}
+        if any(v is None for v in scores.values()) or not self.lighthouse_measured_on:
+            return None
+        return {**scores, "measured_on": self.lighthouse_measured_on}
 
 
 class ProjectImage(models.Model):
@@ -164,7 +222,7 @@ class ProjectImage(models.Model):
 
     project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name="gallery")
     image = models.ImageField(
-        upload_to=UUIDUploadTo("projects/gallery"), validators=[image_validator]
+        upload_to=UUIDUploadTo("projects/gallery"), validators=PUBLIC_IMAGE_VALIDATORS
     )
     alt_text = models.CharField(max_length=200)
     caption = models.CharField(max_length=200, blank=True)
@@ -187,7 +245,7 @@ class Testimonial(TimeStampedModel):
     )
     rating = models.PositiveSmallIntegerField(null=True, blank=True)
     avatar = models.ImageField(
-        upload_to=UUIDUploadTo("testimonials"), blank=True, validators=[image_validator]
+        upload_to=UUIDUploadTo("testimonials"), blank=True, validators=PUBLIC_IMAGE_VALIDATORS
     )
     published = models.BooleanField(default=False)
     order = models.PositiveSmallIntegerField(default=0)
@@ -213,7 +271,7 @@ class BlogPost(TimeStampedModel):
     excerpt = models.CharField(max_length=300, blank=True)
     body = models.TextField(help_text="HTML. Sanitised on save; scripts and handlers are removed.")
     cover_image = models.ImageField(
-        upload_to=UUIDUploadTo("blog"), blank=True, validators=[image_validator]
+        upload_to=UUIDUploadTo("blog"), blank=True, validators=PUBLIC_IMAGE_VALIDATORS
     )
     cover_alt = models.CharField(max_length=200, blank=True)
     author = models.ForeignKey(
@@ -241,3 +299,21 @@ class BlogPost(TimeStampedModel):
         if self.published and self.published_at is None:
             self.published_at = timezone.now()
         super().save(*args, **kwargs)
+
+
+# Public images are re-encoded from pixels before they're stored: strips EXIF/GPS
+# metadata and anything appended to the file (audit v2, M-2). Runs before the
+# file field writes to storage, so the original bytes never reach public media.
+_PUBLIC_IMAGE_FIELDS = {
+    "Project": ("cover_image",),
+    "ProjectImage": ("image",),
+    "Testimonial": ("avatar",),
+    "BlogPost": ("cover_image",),
+}
+
+
+@receiver(pre_save, dispatch_uid="portfolio.sanitize_public_images")
+def _sanitize_public_images(sender: Any, instance: Any, **kwargs: Any) -> None:
+    fields = _PUBLIC_IMAGE_FIELDS.get(sender.__name__)
+    if fields and sender._meta.app_label == "portfolio":
+        sanitize_new_images(instance, *fields)

@@ -2,12 +2,9 @@ import { NextResponse, type NextRequest } from "next/server";
 
 import { decide } from "@/lib/auth-guard";
 
-// Server-side base URL for the API. Inside Docker this is the backend service
-// (http://backend:8000), not the browser-facing NEXT_PUBLIC_API_URL.
-const API = (process.env.API_INTERNAL_URL ?? process.env.NEXT_PUBLIC_API_URL ?? "").replace(
-  /\/+$/,
-  "",
-);
+// Server-side base URL for the API: the Render origin in production, the backend
+// service in Docker. Never exposed to the browser.
+const API = (process.env.API_INTERNAL_URL ?? "").replace(/\/+$/, "");
 
 export async function middleware(request: NextRequest) {
   const path = request.nextUrl.pathname + request.nextUrl.search;

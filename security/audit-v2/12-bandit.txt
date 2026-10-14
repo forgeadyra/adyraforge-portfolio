@@ -1,0 +1,66 @@
+$ bandit -r backend ml -x backend/tests   (HEAD 7e7a15c)
+bandit 1.9.4
+[main]	INFO	profile include tests: None
+[main]	INFO	profile exclude tests: None
+[main]	INFO	cli include tests: None
+[main]	INFO	cli exclude tests: None
+[main]	INFO	running on Python 3.12.15
+Working... ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 100% 0:00:01
+Run started:2026-10-14 06:12:51.104821+00:00
+
+Test results:
+>> Issue: [B105:hardcoded_password_string] Possible hardcoded password: 'Incorrect password.'
+   Severity: Low   Confidence: Medium
+   CWE: CWE-259 (https://cwe.mitre.org/data/definitions/259.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.4/plugins/b105_hardcoded_password_string.html
+   Location: backend/apps/accounts/serializers.py:41:47
+40	        if not user.check_password(attrs["current_password"]):
+41	            raise serializers.ValidationError({"current_password": "Incorrect password."})
+42	        try:
+
+--------------------------------------------------
+>> Issue: [B310:blacklist] Audit url open for permitted schemes. Allowing use of file:/ or custom schemes is often unexpected.
+   Severity: Medium   Confidence: High
+   CWE: CWE-22 (https://cwe.mitre.org/data/definitions/22.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.4/blacklists/blacklist_calls.html#b310-urllib-urlopen
+   Location: backend/apps/leads/turnstile.py:23:13
+22	    try:
+23	        with urlopen(request, timeout=5) as response:  # noqa: S310 (fixed https URL)
+24	            payload = json.load(response)
+
+--------------------------------------------------
+>> Issue: [B105:hardcoded_password_string] Possible hardcoded password: 'test-secret-verification-is-mocked'
+   Severity: Low   Confidence: Medium
+   CWE: CWE-259 (https://cwe.mitre.org/data/definitions/259.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.4/plugins/b105_hardcoded_password_string.html
+   Location: backend/config/settings/test.py:28:23
+27	EMAIL_SEND_ASYNC = False
+28	TURNSTILE_SECRET_KEY = "test-secret-verification-is-mocked"  # noqa: S105
+29	
+
+--------------------------------------------------
+
+Code scanned:
+	Total lines of code: 4864
+	Total lines skipped (#nosec): 0
+	Total potential issues skipped due to specifically being disabled (e.g., #nosec BXXX): 0
+
+Run metrics:
+	Total issues (by severity):
+		Undefined: 0
+		Low: 2
+		Medium: 1
+		High: 0
+	Total issues (by confidence):
+		Undefined: 0
+		Low: 0
+		Medium: 2
+		High: 1
+Files skipped (0):
+exit=1
+
+--- triage (manual) ---
+B310 leads/turnstile.py:23  urlopen() of the module constant VERIFY_URL = "https://challenges.cloudflare.com/..."; no user input reaches the URL, so file:/custom schemes are impossible -> false positive
+B105 accounts/serializers.py:41  "Incorrect password." is a validation message, not a credential -> false positive
+B105 settings/test.py:28  test-only placeholder; Turnstile is mocked in tests and production rejects it (validation.py) -> false positive
+High severity: 0. Nothing to fix.

@@ -1,0 +1,36 @@
+# Weekly dependency updates (CLAUDE.md rule 15). Each PR must pass CI (pytest,
+# check --deploy, pip-audit, npm audit, build) before merging.
+version: 2
+updates:
+  - package-ecosystem: pip
+    # Dependabot understands pip-compile: it bumps requirements/*.in pins and
+    # regenerates the hashed requirements/*.txt.
+    directory: /backend
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    groups:
+      django:
+        patterns: ["django*", "djangorestframework"]
+    labels: ["dependencies", "backend"]
+
+  - package-ecosystem: npm
+    directory: /frontend
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    groups:
+      next-react:
+        patterns: ["next", "react", "react-dom", "@types/react*"]
+      three:
+        patterns: ["three", "@react-three/*"]
+    labels: ["dependencies", "frontend"]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    labels: ["dependencies", "ci"]

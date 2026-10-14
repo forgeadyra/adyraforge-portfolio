@@ -1,0 +1,27 @@
+All checks passed!
+============================= test session starts ==============================
+platform linux -- Python 3.12.15, pytest-9.1.1, pluggy-1.6.0 -- /usr/local/bin/python3.12
+django: version: 5.2.18, settings: config.settings.test (from ini)
+rootdir: /app/backend
+configfile: pyproject.toml
+plugins: platformdirs-4.13.0, django-4.14.0
+collecting ... collected 16 items
+
+tests/test_client_ip.py::test_rotating_x_forwarded_for_does_not_reset_the_contact_throttle[0] PASSED [  6%]
+tests/test_client_ip.py::test_rotating_x_forwarded_for_does_not_reset_the_contact_throttle[1] PASSED [ 12%]
+tests/test_client_ip.py::test_behind_one_proxy_two_real_clients_are_throttled_independently PASSED [ 18%]
+tests/test_client_ip.py::test_behind_one_proxy_two_real_clients_are_locked_out_independently PASSED [ 25%]
+tests/test_client_ip.py::test_spoofed_leftmost_entry_cannot_escape_the_lockout PASSED [ 31%]
+tests/test_lockout_throttle.py::test_axes_settings_match_policy PASSED   [ 37%]
+tests/test_lockout_throttle.py::test_five_failures_lock_the_account_even_with_the_right_password PASSED [ 43%]
+tests/test_lockout_throttle.py::test_lockout_response_never_sends_wildcard_cors PASSED [ 50%]
+tests/test_lockout_throttle.py::test_lockout_is_per_email_and_ip PASSED  [ 56%]
+tests/test_lockout_throttle.py::test_wrong_otp_codes_count_towards_lockout PASSED [ 62%]
+tests/test_lockout_throttle.py::test_login_throttle_is_5_per_minute PASSED [ 68%]
+tests/test_lockout_throttle.py::test_password_reset_is_throttled PASSED  [ 75%]
+tests/test_client_ip.py::test_without_trusted_proxies_x_forwarded_for_is_ignored PASSED [ 81%]
+tests/test_client_ip.py::test_behind_one_proxy_only_the_proxy_appended_entry_counts PASSED [ 87%]
+tests/test_client_ip.py::test_behind_two_proxies PASSED                  [ 93%]
+tests/test_client_ip.py::test_missing_or_garbage_header_falls_back_to_remote_addr PASSED [100%]
+
+============================= 16 passed in 17.46s ==============================

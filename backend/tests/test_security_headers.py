@@ -59,3 +59,27 @@ def test_cors_allows_only_listed_origins(client: Client) -> None:
     evil = client.get("/api/auth/csrf/", headers={"Origin": "https://evil.example"})
     assert "Access-Control-Allow-Origin" not in evil.headers
     assert settings.CORS_ALLOW_ALL_ORIGINS is False
+
+
+@override_settings(ALLOWED_HOSTS=["api.adyraforge.test"])
+def test_healthcheck_answers_probes_by_container_ip(client: Client) -> None:
+    # Docker/Render probe the container by IP, which is never in ALLOWED_HOSTS.
+    resp = client.get("/healthz/", HTTP_HOST="10.0.0.5:8000", secure=True)
+    assert resp.status_code == 200
+    assert resp.json() == {"status": "ok"}
+    assert resp.headers["X-Frame-Options"] == "DENY"
+    assert "default-src 'none'" in resp.headers["Content-Security-Policy"]
+
+
+@override_settings(ALLOWED_HOSTS=["api.adyraforge.test"])
+def test_host_validation_still_applies_everywhere_else(client: Client) -> None:
+    assert client.get("/api/auth/csrf/", HTTP_HOST="10.0.0.5:8000", secure=True).status_code == 400
+    assert client.get("/healthz/x", HTTP_HOST="10.0.0.5:8000", secure=True).status_code == 400
+    assert client.post("/healthz/", HTTP_HOST="10.0.0.5:8000", secure=True).status_code == 400
+
+
+@pytest.mark.parametrize("path", ["/api/health", "/api/health/"])
+def test_uptime_monitor_health_path(client: Client, path: str) -> None:
+    resp = client.get(path, secure=True)
+    assert resp.status_code == 200
+    assert resp.json() == {"status": "ok"}

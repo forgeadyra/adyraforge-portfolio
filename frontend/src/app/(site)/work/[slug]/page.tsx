@@ -4,6 +4,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { JsonLd } from "@/components/site/JsonLd";
+import { LighthouseScores, formatMeasured } from "@/components/site/LighthouseScores";
+import { ProjectBadges } from "@/components/site/ProjectBadges";
 import { ProjectCard } from "@/components/site/ProjectCard";
 import { Reveal } from "@/components/site/Reveal";
 import { CtaBand } from "@/components/site/Sections";
@@ -25,7 +27,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   if (!project) return { title: "Project not found" };
   const description =
     project.summary ||
-    `${project.title}: a ${project.status === "live" ? "live" : "concept"} project by AdyraForge.`;
+    `${project.title}: ${project.kind === "concept" ? "a concept project" : "a client project"} by AdyraForge.`;
   return {
     title: project.title,
     description,
@@ -68,14 +70,20 @@ export default async function CaseStudyPage({ params }: Props) {
         <p className="text-sm">
           <Link href="/work">← All work</Link>
         </p>
-        <p className="mt-6 text-xs uppercase tracking-[0.2em] text-gold">
-          {[project.industry, project.status === "live" ? "Live" : "Concept build"]
-            .filter(Boolean)
-            .join(" · ")}
-        </p>
+        <div className="mt-6 flex flex-wrap items-center gap-3">
+          <ProjectBadges project={project} />
+          {project.industry && (
+            <span className="text-xs uppercase tracking-[0.2em] text-gold">{project.industry}</span>
+          )}
+        </div>
         <h1 className="mt-3 font-display text-4xl font-bold sm:text-5xl">{project.title}</h1>
         {project.summary && <p className="mt-4 text-lg text-ink/80">{project.summary}</p>}
-        {project.client_name && (
+        {project.kind === "concept" && (
+          <p className="mt-3 text-sm text-muted">
+            A self-initiated concept, not work for a paying client.
+          </p>
+        )}
+        {project.kind === "client" && project.client_name && (
           <p className="mt-2 text-sm text-muted">Client: {project.client_name}</p>
         )}
         {project.live_url && (
@@ -115,16 +123,32 @@ export default async function CaseStudyPage({ params }: Props) {
               <p className="whitespace-pre-line text-ink/85">{project.solution}</p>
             </Block>
           )}
-          {project.result_metrics.length > 0 && (
+          {(project.result_metrics.length > 0 || project.results_note) && (
             <Block title="The result">
-              <dl className="grid gap-4 sm:grid-cols-3">
-                {project.result_metrics.map((m) => (
-                  <div key={m.label} className="rounded-lg border border-ink/10 bg-surface p-4">
-                    <dt className="text-sm text-muted">{m.label}</dt>
-                    <dd className="mt-1 font-display text-2xl font-bold text-gold">{m.value}</dd>
-                  </div>
-                ))}
-              </dl>
+              {project.result_metrics.length > 0 && (
+                <dl className="grid gap-4 sm:grid-cols-3">
+                  {project.result_metrics.map((m) => (
+                    <div key={m.label} className="rounded-lg border border-ink/10 bg-surface p-4">
+                      <dt className="text-sm text-muted">{m.label}</dt>
+                      <dd className="mt-1 font-display text-2xl font-bold text-gold">{m.value}</dd>
+                    </div>
+                  ))}
+                </dl>
+              )}
+              {project.results_note && (
+                <p className="mt-4 whitespace-pre-line text-sm text-ink/80">
+                  {project.results_note}
+                </p>
+              )}
+            </Block>
+          )}
+          {project.lighthouse && (
+            <Block title="Built to perform">
+              <LighthouseScores scores={project.lighthouse} />
+              <p className="mt-4 text-xs text-muted">
+                Google Lighthouse, mobile, measured on the live site{" "}
+                {formatMeasured(project.lighthouse.measured_on)}.
+              </p>
             </Block>
           )}
           {project.technologies.length > 0 && (

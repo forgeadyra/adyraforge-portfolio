@@ -22,12 +22,19 @@ class LeadAdmin(AuditedModelAdmin):
     list_display = (
         "name",
         "email",
+        "company",
         "project_type",
         "budget_range",
+        "source",
         "status",
         "score",
         "created_at",
     )
+    # Pipeline view: best leads first. Status is editable in the list; the model's
+    # transition rules still apply (an invalid move is a form error, not a save).
+    ordering = ("-score", "-created_at")
+    list_editable = ("status",)
+    list_per_page = 50
     list_filter = ("status", "project_type", "budget_range", "timeline", "source", "utm_source")
     search_fields = ("name", "email", "company", "message")
     date_hierarchy = "created_at"

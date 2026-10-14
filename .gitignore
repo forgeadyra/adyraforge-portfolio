@@ -33,6 +33,8 @@ npm-debug.log*
 
 # --- data / backups ---
 *.sql
+# Reviewed, secret-free schema/role script (password is a placeholder filled in the Neon editor).
+!deploy/neon_app_role.sql
 *.dump
 *.sqlite3
 *.db

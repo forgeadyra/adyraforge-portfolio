@@ -8,3 +8,8 @@ ruff
 black
 pip-audit
 pip-tools
+bandit
+deptry
+moto[s3]
+# tests/test_ci_workflow.py parses .github/workflows/ci.yml
+pyyaml

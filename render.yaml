@@ -1,0 +1,93 @@
+# Render Blueprint for the AdyraForge API (backend/), FREE instance. See DEPLOY.md.
+# Placeholders only: every `sync: false` value is entered in the Render dashboard,
+# never committed. Production refuses to boot if any required value is missing or
+# weak, and the log names the variable, never its value.
+#
+# The browser never calls this service directly: adyraforge.netlify.app proxies
+# /api/* here (signed). Server-side (Next build/ISR/middleware) calls it directly.
+#
+# Free-tier differences, handled outside Render:
+# - No pre-deploy command: migrations run from GitHub Actions
+#   (.github/workflows/deploy-backend.yml), which then triggers this service's deploy
+#   hook. The database OWNER credentials therefore never live on Render.
+# - No cron: expired sessions are purged daily by .github/workflows/maintenance.yml.
+# - Spins down after 15 idle minutes (~1 min cold start): UptimeRobot pings /api/health.
+services:
+  - type: web
+    name: adyraforge-api
+    runtime: docker
+    plan: free
+    # Repo root is the build context: the backend imports /ml as a package.
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: .
+    # Builds the last Dockerfile stage (prod): hash-pinned base.txt, read-only code,
+    # non-root user. Its CMD runs collectstatic (whitenoise) and then
+    #   gunicorn config.wsgi:application --bind 0.0.0.0:$PORT --workers $WEB_CONCURRENCY
+    region: singapore # next to Neon ap-southeast-1; change both together
+    healthCheckPath: /api/health # answered before Host validation; no DB access
+    autoDeploy: false # deploys come from the deploy hook, after migrations
+    envVars:
+      - key: DJANGO_ENV
+        value: production
+      - key: WEB_CONCURRENCY
+        value: "2"
+      # Requests reach Django through Render's load balancer (1 trusted hop). The
+      # Netlify hop is verified by signature instead of counted (settings/base.py).
+      - key: TRUSTED_PROXY_COUNT
+        value: "1"
+      # Only this service's own host. If Render assigns a different *.onrender.com
+      # name, change it here, in netlify.toml and in Netlify's API_INTERNAL_URL.
+      - key: ALLOWED_HOSTS
+        value: adyraforge-api.onrender.com
+      # The site is the only browser origin (first-party cookies via the proxy).
+      # Moving to a custom domain later = changing these three values.
+      - key: FRONTEND_URL
+        value: https://adyraforge.netlify.app
+      - key: CORS_ALLOWED_ORIGINS
+        value: https://adyraforge.netlify.app
+      - key: CSRF_TRUSTED_ORIGINS
+        value: https://adyraforge.netlify.app
+      # Gmail SMTP with an app password (DEPLOY.md). Gmail rewrites any From that
+      # isn't the signed-in account, so the sender is the account itself.
+      - key: EMAIL_HOST
+        value: smtp.gmail.com
+      - key: EMAIL_PORT
+        value: "587"
+      - key: EMAIL_USE_TLS
+        value: "True"
+      - key: EMAIL_HOST_USER
+        value: forgeadyra@gmail.com
+      - key: DEFAULT_FROM_EMAIL
+        value: AdyraForge <forgeadyra@gmail.com>
+      - key: LEAD_NOTIFY_EMAIL
+        value: forgeadyra@gmail.com
+      # Backblaze B2 (S3-compatible). Region and endpoint come from the bucket page.
+      - key: STORAGE_REGION
+        value: us-west-004 # EXAMPLE: replace with your bucket's region
+      - key: STORAGE_ENDPOINT_URL
+        value: https://s3.us-west-004.backblazeb2.com # EXAMPLE: s3.<region>.backblazeb2.com
+      - key: PRIVATE_BUCKET
+        sync: false # e.g. adyraforge-private (Private bucket)
+      - key: MEDIA_BUCKET
+        sync: false # e.g. adyraforge-media (Public bucket)
+      - key: MEDIA_URL
+        sync: false # https://<MEDIA_BUCKET>.s3.<region>.backblazeb2.com/
+      # --- secrets: set in the dashboard -----------------------------------------
+      - key: SECRET_KEY # 50+ chars; see DEPLOY.md (Render's generateValue is too short)
+        sync: false
+      - key: ADMIN_URL # unguessable, 16+ chars, trailing slash
+        sync: false
+      - key: DATABASE_URL # Neon pooled-off URL for adyraforge_app, ?sslmode=require
+        sync: false
+      - key: NETLIFY_PROXY_SIGNING_SECRET # same value as the Netlify env var
+        sync: false
+      - key: EMAIL_HOST_PASSWORD # the Gmail app password (16 letters)
+        sync: false
+      - key: TURNSTILE_SECRET_KEY
+        sync: false
+      - key: STORAGE_ACCESS_KEY_ID # B2 application key ID (scoped to the two buckets)
+        sync: false
+      - key: STORAGE_SECRET_ACCESS_KEY # B2 application key
+        sync: false
+      - key: SENTRY_DSN # optional
+        sync: false

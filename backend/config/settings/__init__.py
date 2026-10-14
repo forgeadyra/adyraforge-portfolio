@@ -13,5 +13,8 @@ if _ENV == "development":
     from .development import *  # noqa: F403
 elif _ENV == "test":
     from .test import *  # noqa: F403
+elif _ENV == "maintenance":
+    # Management commands from GitHub Actions only; serves no URLs (see module).
+    from .maintenance import *  # noqa: F403
 else:
     from .production import *  # noqa: F403

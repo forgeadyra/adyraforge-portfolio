@@ -1,0 +1,3 @@
+$ python audit_fixtures.py   (HEAD 7e7a15c)
+audit fixtures ready (credentials in /tmp/audit_creds.json, not printed)
+bob object ids: {'project': 4, 'milestone': 6, 'message': 5, 'file': 4, 'invoice': 4}

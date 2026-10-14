@@ -1,0 +1,24 @@
+Production after stopgap PR #3 (merge e07a002), 2026-10-14T06:33Z. Read-only GETs.
+/                                    -> 200 52273B
+/index.html                          -> 200 52273B
+/CLAUDE.md                           -> 404 3775B
+/README.md                           -> 404 3775B
+/SECURITY_AUDIT_V1.md                -> 404 3775B
+/backend/config/settings/base.py     -> 404 3775B
+/backend/.env.example                -> 404 3775B
+/docker-compose.yml                  -> 404 3775B
+/.github/workflows/ci.yml            -> 404 3775B
+/netlify.toml                        -> 404 3775B
+/legacy/index.html                   -> 404 3775B
+/.env                                -> 404 3775B
+
+$ curl -s https://adyraforge.netlify.app/ | grep -o '<title>.*</title>'
+<title>AdyraForge — Performant Web Engineering &amp; Development</title>
+
+$ curl -sI https://adyraforge.netlify.app/ (security headers)
+Cross-Origin-Opener-Policy: same-origin
+Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=(), usb=()
+Referrer-Policy: strict-origin-when-cross-origin
+Strict-Transport-Security: max-age=31536000; includeSubDomains; preload
+X-Content-Type-Options: nosniff
+X-Frame-Options: DENY

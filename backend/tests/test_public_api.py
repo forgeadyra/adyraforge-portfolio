@@ -1,6 +1,6 @@
 import pytest
 from django.core.management import call_command
-from django.test import Client, override_settings
+from django.test import Client
 
 from apps.portfolio import models as portfolio_models
 from apps.portfolio.models import Project, Service
@@ -30,9 +30,9 @@ def test_project_filters(seeded) -> None:
     }
     by_industry = get("projects/", industry="healthcare / hospital").json()
     assert [p["slug"] for p in by_industry] == ["medicare-plus"]
+    # Only client work is featured; concepts (MediCare Plus) are listed, never featured.
     assert {p["slug"] for p in get("projects/", featured="1").json()} == {
         "latelier-de-gastronomie",
-        "medicare-plus",
     }
 
 
@@ -45,16 +45,51 @@ def test_case_study_detail_has_similar_projects_that_really_overlap(seeded) -> N
     assert similar and similar[0] == "latelier-de-gastronomie"  # shares HTML5 + JavaScript
 
 
-def test_stats_are_computed_from_published_data(seeded) -> None:
-    stats = get("stats/").json()
-    assert stats["live_projects"] == 2  # mėntality is live but unpublished
-    assert "Healthcare / hospital" in stats["industries"]
-    assert stats["response_time_hours"] is None
+def test_kind_is_exposed_and_only_latelier_is_a_client(seeded) -> None:
+    kinds = {p["slug"]: p["kind"] for p in get("projects/").json()}
+    assert kinds == {
+        "latelier-de-gastronomie": "client",
+        "medicare-plus": "concept",
+        "nexus-operations-dashboard": "concept",
+        "aether-product-launch": "concept",
+    }
 
 
-@override_settings(RESPONSE_TIME_HOURS=24)
-def test_response_time_only_appears_when_configured(seeded) -> None:
-    assert get("stats/").json()["response_time_hours"] == 24
+def test_proof_bar_stats_endpoint_is_gone() -> None:
+    assert get("stats/").status_code == 404
+
+
+def test_lighthouse_is_null_until_complete_then_exposed(seeded) -> None:
+    from datetime import date
+
+    def card() -> dict:
+        return next(p for p in get("projects/").json() if p["slug"] == "medicare-plus")
+
+    assert card()["lighthouse"] is None
+    Project.objects.filter(slug="medicare-plus").update(lighthouse_performance=97)
+    assert card()["lighthouse"] is None  # partial scores are never shown
+    Project.objects.filter(slug="medicare-plus").update(
+        lighthouse_accessibility=100,
+        lighthouse_best_practices=96,
+        lighthouse_seo=100,
+        lighthouse_measured_on=date(2026, 10, 1),
+    )
+    assert card()["lighthouse"] == {
+        "performance": 97,
+        "accessibility": 100,
+        "best_practices": 96,
+        "seo": 100,
+        "measured_on": "2026-10-01",
+    }
+
+
+def test_results_note_is_in_case_study_detail(seeded) -> None:
+    Project.objects.filter(slug="medicare-plus").update(
+        results_note="Concept build: no real traffic, so no conversion data."
+    )
+    detail = get("projects/medicare-plus/").json()
+    assert detail["results_note"].startswith("Concept build")
+    assert detail["kind"] == "concept" and detail["client_name"] == ""
 
 
 def test_services_have_no_invented_prices(seeded) -> None:

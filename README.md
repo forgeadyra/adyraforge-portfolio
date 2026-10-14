@@ -7,7 +7,7 @@ Project rules live in [CLAUDE.md](CLAUDE.md); read them before changing anything
 frontend/   Next.js 15 (App Router, TypeScript strict, Tailwind v4)        → Netlify
 backend/    Django 5.2 + DRF, Python 3.12, PostgreSQL, session auth          → Render / Railway
 ml/         recommender package (adyra_ml), imported by the backend
-index.html  v1 static site (still what adyraforge.netlify.app serves; see "Deploying")
+legacy/     v1 static site (index.html), kept for reference; never deployed by netlify.toml
 ```
 
 ## Prerequisites
@@ -75,7 +75,12 @@ docker compose exec backend pip-audit --strict --cache-dir /tmp/pip-audit -r req
 Production settings check (pass real-looking values; nothing is read from `backend/.env` for these):
 
 ```bash
-docker compose exec -e DJANGO_ENV=production -e SECRET_KEY="<50+ random chars>" -e ALLOWED_HOSTS=api.adyraforge.com -e ADMIN_URL=<unguessable-path>/ -e CORS_ALLOWED_ORIGINS=https://adyraforge.com -e CSRF_TRUSTED_ORIGINS=https://adyraforge.com backend python manage.py check --deploy --fail-level WARNING
+docker compose exec -e DJANGO_ENV=production -e SECRET_KEY="<50+ random chars>" -e ALLOWED_HOSTS=adyraforge-api.onrender.com -e ADMIN_URL=<unguessable-path>/ -e CORS_ALLOWED_ORIGINS=https://adyraforge.netlify.app -e CSRF_TRUSTED_ORIGINS=https://adyraforge.netlify.app -e FRONTEND_URL=https://adyraforge.netlify.app backend python manage.py check --deploy --fail-level WARNING
+```
+
+It lists every other variable production requires (see the table below); CI sets them all to fake values (`backend/tests/test_ci_workflow.py` keeps that list complete).
+
+```bash
 ```
 
 Frontend:
@@ -87,7 +92,7 @@ npm run lint
 npm run typecheck
 npm run format:check
 npm test
-NEXT_PUBLIC_API_URL=https://api.adyraforge.com npm run build
+API_INTERNAL_URL=http://localhost:8000 NEXT_PUBLIC_SITE_URL=http://localhost:3000 NEXT_PUBLIC_MEDIA_URL=http://localhost:8000 npm run build
 npm audit --audit-level=high
 ```
 
@@ -107,25 +112,32 @@ Git hooks (gitleaks, ruff, black, eslint, prettier): `pre-commit install`.
 | --- | --- |
 | `DJANGO_ENV` | `production`. Unset or unknown also means production (fail closed). |
 | `SECRET_KEY` | 50+ chars, not a placeholder, not `django-insecure…` |
-| `ALLOWED_HOSTS` | e.g. `api.adyraforge.com`, no wildcards |
-| `DATABASE_URL` | `postgres://…` (Neon). Non-PostgreSQL is rejected in every environment. |
+| `ALLOWED_HOSTS` | the Render service host only, e.g. `adyraforge-api.onrender.com`; no wildcards |
+| `DATABASE_URL` | `postgres://…?sslmode=require` (Neon), as the least-privilege `adyraforge_app` role (`deploy/neon_app_role.sql`). Non-PostgreSQL is rejected everywhere; production also rejects a URL without `sslmode=require`/`verify-*`. |
 | `ADMIN_URL` | unguessable, 16+ chars, trailing slash |
-| `CORS_ALLOWED_ORIGINS`, `CSRF_TRUSTED_ORIGINS` | `https://adyraforge.com` (https only, explicit) |
-| `FRONTEND_URL` | `https://adyraforge.com` (used in emailed invite/reset links) |
-| `EMAIL_URL` | a real SMTP server, e.g. `smtp+tls://user:pass@host:587` (console/locmem rejected) |
+| `CORS_ALLOWED_ORIGINS`, `CSRF_TRUSTED_ORIGINS` | the site origin, `https://adyraforge.netlify.app` (https only, explicit) |
+| `FRONTEND_URL` | `https://adyraforge.netlify.app`: emailed invite/reset links, the Turnstile hostname check, and the `site_url` a Netlify proxy signature must name |
+| `EMAIL_HOST`, `EMAIL_PORT` (587), `EMAIL_USE_TLS` (True), `EMAIL_HOST_USER`, `EMAIL_HOST_PASSWORD` | SMTP: Gmail (`smtp.gmail.com`, 587, TLS) with a Gmail **app password**. All required in production, with exactly one of TLS/SSL. Development always uses the console backend. |
+| `DEFAULT_FROM_EMAIL`, `LEAD_NOTIFY_EMAIL` | required: the sender (the Gmail account itself) and where lead notifications go |
 | `TURNSTILE_SECRET_KEY` | real Cloudflare Turnstile secret (Cloudflare's test keys rejected) |
-| `SESSION_COOKIE_DOMAIN` | `.adyraforge.com`, so Next middleware on adyraforge.com sees the session cookie |
+| `TRUSTED_PROXY_COUNT` | proxies on the DIRECT path that append to `X-Forwarded-For`: `1` on Render, `0` with no proxy. Must be set explicitly. Too low = every visitor shares one throttle/lockout bucket; too high = spoofable client IPs. |
+| `NETLIFY_PROXY_SIGNING_SECRET` | 32+ chars, identical to the Netlify env var named in `netlify.toml` (`signed = …`). Only requests Netlify signed with it may name the client IP (`X-Nf-Client-Connection-Ip`); everything else falls back to Render's entry. |
+| `SESSION_COOKIE_DOMAIN` | leave **unset**: cookies are host-only on the site's domain (the browser reaches the API through the site's `/api` proxy) |
 | `CACHE_URL` | optional; defaults to `dbcache://django_cache` |
+| `SENTRY_DSN` | optional. Error monitoring with all data collection off and an extra scrubber (`apps/core/monitoring.py`). |
+| `PRIVATE_BUCKET`, `MEDIA_BUCKET` | S3-compatible buckets (Backblaze B2; any S3-compatible provider works). Private: client files and invoices, released only as 60-second presigned URLs after the signed-link ownership check. Media: public images. Must differ. |
+| `MEDIA_URL` | `https://` public URL of `MEDIA_BUCKET` (e.g. `https://<bucket>.s3.<region>.backblazeb2.com/`) |
+| `STORAGE_ACCESS_KEY_ID`, `STORAGE_SECRET_ACCESS_KEY`, `STORAGE_ENDPOINT_URL`, `STORAGE_REGION` | bucket credentials (a B2 application key scoped to the two buckets); B2 endpoint `https://s3.<region>.backblazeb2.com`, region `<region>` |
 
 Production refuses to boot (`ImproperlyConfigured`) if any of these is missing or insecure.
 
-**Frontend.** `NEXT_PUBLIC_API_URL` must be `https://` for production builds; the build fails otherwise. Never put a secret in a `NEXT_PUBLIC_*` variable.
+**Frontend.** The browser only ever calls the site's own origin: `/api/*` is proxied to Django (Netlify's signed proxy in production, a Next rewrite in development). `API_INTERNAL_URL` (server-only: build, ISR, middleware, and the dev proxy), `NEXT_PUBLIC_SITE_URL` and `NEXT_PUBLIC_MEDIA_URL` are required for production builds and must be `https://`; they are set in the Netlify UI, so a domain change is env-only. Never put a secret in a `NEXT_PUBLIC_*` variable. `NEXT_PUBLIC_SENTRY_DSN` (optional) enables Sentry in the browser (lazy-loaded after first paint, tunnelled through `/monitoring`) and the Node server; a DSN is a public identifier, not a secret.
 
 ## Public site
 
 Pages: Home, Work (`/work`, filter by industry and technology), case studies (`/work/[slug]`), Services, Project planner, About, Contact, and a 404. Content comes from the read-only `GET /api/public/*` endpoints with ISR (`revalidate` 1h). If a background revalidation fails, the last good page keeps being served.
 
-- **No invented content.** The proof bar shows real counts. The reply-time promise appears only when `RESPONSE_TIME_HOURS` is set. Service prices appear only once entered in the admin. Testimonials stay hidden until real ones are published. Case-study sections without content aren't rendered.
+- **No invented content.** Every project has `kind` = `client` or `concept`. Concept work always carries a visible **Concept** badge and is never presented as client work. The **Built to perform** strip shows real Lighthouse mobile scores from admin fields, only for projects with all four scores and a measurement date (hidden otherwise). `results_note` lets a case study state limitations honestly. Service prices appear only once entered in the admin. Testimonials stay hidden until real ones are published. Case-study sections without content aren't rendered.
 - **3D hero** (React Three Fiber, faceted AF monogram, bloom, gold rim light) loads only on desktop-class devices (fine pointer, ≥1024px, not low-memory or Save-Data, WebGL2), after `load` plus idle. It pauses when off-screen or the tab is hidden. Phones, reduced-motion and no-WebGL get the SVG poster (`HeroPoster`, same silhouette).
 - **Motion:** Lenis, GSAP ScrollTrigger reveals and the process timeline, and Framer Motion page transitions all load after `load` plus idle. Framer never loads on the first page view. Everything is off under `prefers-reduced-motion`.
 - **SEO:** per-page metadata and canonicals, generated Open Graph images (site and each case study), JSON-LD (Organization, Person, CreativeWork with `<` escaped), `sitemap.xml`, and `robots.txt` (portal and token pages disallowed).
@@ -146,7 +158,7 @@ Mobile (default: simulated slow 4G, 4× CPU), median of runs:
 
 Desktop home, with the 3D scene loaded: Perf 94, LCP 0.5 s, CLS 0, TBT 200 ms. The 3D adds about 450 KB of JS after load, and one ~230 ms main-thread task when the scene initialises.
 
-To reproduce: `npm run build` with `NEXT_PUBLIC_API_URL`, `API_INTERNAL_URL` and `NEXT_PUBLIC_SITE_URL` set, run `npx next start -p 3001` with the same variables, then `npx lighthouse@12.8.2 http://localhost:3001/`.
+To reproduce: `npm run build` with `API_INTERNAL_URL`, `NEXT_PUBLIC_SITE_URL` and `NEXT_PUBLIC_MEDIA_URL` set, run `npx next start -p 3001` with the same variables, then `npx lighthouse@12.8.2 http://localhost:3001/`.
 
 ## Data model
 
@@ -196,21 +208,22 @@ Sessions: login rotates the session key and CSRF token, and sessions last at mos
 
 ## Deploying
 
-> **Do not push this to `main` yet.** Netlify currently publishes the repo root (the v1 `index.html`). Pushing as-is would publish `backend/`, `CLAUDE.md`, `SECURITY_AUDIT_V1.md` and everything else at `adyraforge.netlify.app/...`. First change the Netlify site to base directory `frontend`, or move v1 elsewhere.
+Production is **https://adyraforge.netlify.app** only (no custom domain yet). The browser talks to that origin alone; `/api/*` is proxied, signed, to the API on Render's free tier.
 
-- Backend image: `docker build -f backend/Dockerfile --target prod .`. It runs `collectstatic` on start, then gunicorn on `$PORT`. Run `migrate` and `createcachetable` as the platform's release / pre-deploy command.
-- `/healthz/` is exempt from the HTTPS redirect for platform health checks.
+- Step-by-step runbook: [`DEPLOY.md`](DEPLOY.md). Render blueprint: [`render.yaml`](render.yaml). Netlify config: [`netlify.toml`](netlify.toml) (builds and publishes **only** `frontend/`; `main` currently publishes only `legacy/` as a stopgap).
+- Backend image: `docker build -f backend/Dockerfile --target prod .`. It runs `collectstatic` on start, then gunicorn on `$PORT`.
+- Render free has no pre-deploy command or cron, so GitHub Actions does both: [`deploy-backend.yml`](.github/workflows/deploy-backend.yml) migrates as the database owner and then triggers the Render deploy hook; [`maintenance.yml`](.github/workflows/maintenance.yml) runs `clearsessions` daily as the app role. Both use the `maintenance` settings (no hosts, no URLs) and GitHub encrypted secrets only.
+- `/healthz/` (platform) and `/api/health` (uptime pinger) are answered before Host validation and touch no database.
+- Moving to a custom domain later is env-only: `FRONTEND_URL`, `CORS_ALLOWED_ORIGINS`, `CSRF_TRUSTED_ORIGINS` (Render) and `NEXT_PUBLIC_SITE_URL` (Netlify).
 
 ## Known follow-ups
 
-- **Content to fill in (admin):** service "starting from" prices (INR and USD), `RESPONSE_TIME_HOURS`, case-study problem text, result metrics, screenshots and cover images, testimonials, and the mėntality copy (it stays unpublished until then).
+- **Content to fill in (admin):** service "starting from" prices (INR and USD), Lighthouse scores per live project, case-study problem text, result metrics and results notes, screenshots and cover images, testimonials, and the mėntality copy (it stays unpublished until then).
+- **L'Atelier de Gastronomie's live URL is gone.** `phenomenal-belekoy-881bf4.netlify.app` returned Netlify's 404 page on 2026-10-13, so the seed marks it `not_live` with no link. The v1 site still links to it.
 - **3D init on desktop** is one ~230 ms task about a second after load. If real-user INP data shows clicks landing in it, load the scene on first pointer movement instead of on idle.
 - **Admin dashboard frontend.** The OTP-gated `/api/admin/*` endpoints exist; the custom dashboard UI doesn't yet. The Django admin works today.
-- **Revoked sessions linger as rows** until they expire (they can no longer authenticate). Schedule `manage.py clearsessions` daily in production.
 
-- **Private file storage in production.** Downloads already go through ownership-checked, 5-minute signed links (`apps/clients/downloads.py`), served from local private storage. Before launch, choose a private S3 bucket or Cloudinary authenticated assets and swap that module for presigned URLs.
 - **Deleting a `ProjectFile` row leaves the stored file on disk.** Whether deletion should also erase the file, or keep it for records, is a data-retention decision for you.
 - **Budget bands** in `leads.BudgetRange` are placeholders. Adjust them to your real pricing.
 
 - **CSP on the frontend** allows `'unsafe-inline'` scripts, because Next's hydration scripts are inline. The strict alternative is a per-request nonce via middleware, which makes every page dynamic (no static/CDN caching). This is a performance-versus-security decision still to make.
-- **Client IP behind a proxy.** django-axes uses `REMOTE_ADDR`, which on Render is the proxy. Before going live, configure trusted-proxy IP extraction, so lockouts are per client and not per proxy.

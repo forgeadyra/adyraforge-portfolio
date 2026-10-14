@@ -14,3 +14,5 @@ gunicorn
 Pillow
 nh3
 filetype
+sentry-sdk[django]
+django-storages[s3]

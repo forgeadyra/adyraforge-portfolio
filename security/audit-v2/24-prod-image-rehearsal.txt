@@ -1,0 +1,31 @@
+Production rehearsal on the REAL prod image (adyraforge-backend:prod, Dockerfile 'prod' stage at 7e7a15c, 2026-10-14T06:11Z)
+against a throwaway TLS Postgres 16 (self-signed cert). Random local passwords, not shown.
+
+1) owner runs deploy/neon_app_role.sql over TLS (sslmode=require)
+----------------+----------+-------------+---------------+--------------+--------------------
+ adyraforge_app | f        | f           | f             | f            | f
+(1 row)
+
+
+2) release command exactly as in render.yaml (preDeployCommand), prod image, MIGRATION_DATABASE_URL = owner
+  Applying portfolio.0004_public_image_decode_validation... OK
+  Applying portfolio.0005_concept_projects_honesty... OK
+  Applying sessions.0001_initial... OK
+   exit=0
+
+3) render.yaml cron command (clearsessions) on the prod image, as the app role
+   exit=0
+
+4) app containers start from the prod image CMD (collectstatic + gunicorn) as adyraforge_app over TLS
+   af-prod: healthy   af-prod-nodb: healthy   (Docker HEALTHCHECK -> /healthz/ by container IP)
+   image user: app; code writable by app user: no
+   private storage backend in the running app: storages.backends.s3.S3Storage querystring_auth=True expire=60 | media: S3Storage querystring_auth=False
+
+5) prod_probe.py against this stack: see 19-prod-probe.txt (50 pass, 0 fail)
+
+6) $ SELECT usename, ssl, version FROM pg_stat_ssl JOIN pg_stat_activity USING (pid) WHERE datname = 'neondb'
+    usename     | ssl | version | connections 
+----------------+-----+---------+-------------
+ adyraforge_app | t   | TLSv1.3 |           2
+(1 row)
+

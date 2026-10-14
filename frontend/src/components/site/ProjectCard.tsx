@@ -6,6 +6,8 @@ import { useRef, type PointerEvent } from "react";
 
 import type { ProjectCard as Project } from "@/lib/content";
 
+import { ProjectBadges } from "./ProjectBadges";
+
 /** Case-study card with a subtle hover tilt (fine pointers, motion allowed). */
 export function ProjectCard({
   project,
@@ -58,8 +60,8 @@ export function ProjectCard({
             </span>
           </div>
         )}
-        <span className="absolute left-3 top-3 rounded-full border border-ink/15 bg-base/80 px-2.5 py-0.5 text-xs">
-          {project.status === "live" ? "Live" : "Concept"}
+        <span className="absolute left-3 top-3">
+          <ProjectBadges project={project} />
         </span>
       </div>
       <div className="flex flex-1 flex-col p-5">

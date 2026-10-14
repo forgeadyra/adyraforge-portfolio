@@ -17,10 +17,16 @@ def test_seed_loads_real_projects() -> None:
     }
     assert projects["medicare-plus"].live_url == "https://multimedicareplus.netlify.app/"
     assert projects["mentality-landing-page"].live_url == "https://forgementality.netlify.app/"
-    assert {p.slug for p in Project.objects.filter(status="concept")} == {
+    # Only L'Atelier is client work; everything else is a concept.
+    assert {p.slug for p in Project.objects.filter(kind="client")} == {"latelier-de-gastronomie"}
+    # L'Atelier's old URL is a Netlify 404, so it isn't advertised as live.
+    assert {p.slug for p in Project.objects.filter(status="not_live")} == {
+        "latelier-de-gastronomie",
         "nexus-operations-dashboard",
         "aether-product-launch",
     }
+    assert projects["latelier-de-gastronomie"].live_url == ""
+    assert all(not p.client_name for p in projects.values() if p.kind == "concept")
     for p in projects.values():
         p.full_clean()
         assert p.result_metrics == [], "metrics must come from the owner, never be invented"
@@ -43,3 +49,16 @@ def test_seed_force_resets_seeded_fields() -> None:
     Project.objects.filter(slug="medicare-plus").update(summary="Edited in admin")
     call_command("seed_portfolio", force=True)
     assert Project.objects.get(slug="medicare-plus").summary != "Edited in admin"
+
+
+@pytest.mark.django_db
+def test_concepts_are_labelled_and_never_featured() -> None:
+    call_command("seed_portfolio", verbosity=0)
+    medicare = Project.objects.get(slug="medicare-plus")
+    mentality = Project.objects.get(slug="mentality-landing-page")
+    assert medicare.kind == mentality.kind == Project.Kind.CONCEPT
+    assert not medicare.is_featured and not mentality.is_featured
+    assert medicare.summary == (
+        "Hospital website concept with a 4-step booking flow (front-end prototype)"
+    )
+    assert not Project.objects.filter(kind=Project.Kind.CONCEPT, is_featured=True).exists()

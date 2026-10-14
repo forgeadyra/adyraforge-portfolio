@@ -1,8 +1,10 @@
 """Load AdyraForge's real services and projects.
 
-Copy comes from the v1 site (adyraforge.netlify.app) and the projects' own live
-pages. Nothing is invented: no result metrics, client names or testimonials are
-seeded. Fill those in through the admin once confirmed.
+Only L'Atelier de Gastronomie is client work; every other project is a concept
+(kind=concept) and is never presented as a client. Copy comes from the v1 site
+(adyraforge.netlify.app) and the projects' own live pages. Nothing is invented:
+no result metrics, client names or testimonials are seeded. Fill those in
+through the admin once confirmed.
 
 Idempotent: existing rows (matched by slug) are left untouched so admin edits
 survive a re-run. Pass --force to reset seeded fields to these values.
@@ -82,10 +84,13 @@ SERVICES: list[dict[str, Any]] = [
 PROJECTS: list[dict[str, Any]] = [
     {
         "slug": "latelier-de-gastronomie",
+        "kind": Project.Kind.CLIENT,
         "title": "L'Atelier de Gastronomie",
         "industry": "Restaurant / fine dining",
-        "status": Project.Status.LIVE,
-        "live_url": "https://phenomenal-belekoy-881bf4.netlify.app/",
+        # Its old URL (phenomenal-belekoy-881bf4.netlify.app) returned Netlify's 404
+        # page on 2026-10-13, so it is not advertised as live. Restore with the new URL.
+        "status": Project.Status.NOT_LIVE,
+        "live_url": "",
         "summary": "A premium responsive website built for fine dining establishments.",
         "solution": (
             "A premium responsive website built for fine dining establishments. Features "
@@ -100,23 +105,26 @@ PROJECTS: list[dict[str, Any]] = [
     },
     {
         "slug": "medicare-plus",
+        "kind": Project.Kind.CONCEPT,
         "title": "MediCare Plus",
         "industry": "Healthcare / hospital",
         "status": Project.Status.LIVE,
         "live_url": "https://multimedicareplus.netlify.app/",
-        "summary": "Website for a multi-specialty hospital, with online appointment booking.",
+        "summary": "Hospital website concept with a 4-step booking flow (front-end prototype)",
         "solution": (
-            "A website for a premier multi-specialty hospital presenting its care and "
-            "technology, with online appointment booking."
+            "A front-end prototype of a multi-specialty hospital website: department "
+            "pages and a 4-step appointment booking flow. Not built for a real hospital."
         ),
         "technologies": ["netlify"],
         "services": ["websites"],
-        "is_featured": True,
+        # Concept work is never featured alongside client work.
+        "is_featured": False,
         "published": True,
         "order": 2,
     },
     {
         "slug": "mentality-landing-page",
+        "kind": Project.Kind.CONCEPT,
         "title": "mėntality landing page",
         "industry": "",
         "status": Project.Status.LIVE,
@@ -132,9 +140,10 @@ PROJECTS: list[dict[str, Any]] = [
     },
     {
         "slug": "nexus-operations-dashboard",
+        "kind": Project.Kind.CONCEPT,
         "title": "Nexus Operations Dashboard",
         "industry": "Enterprise operations",
-        "status": Project.Status.CONCEPT,
+        "status": Project.Status.NOT_LIVE,
         "live_url": "",
         "summary": "A layout concept for enterprise resource scheduling and operations logging.",
         "solution": (
@@ -149,9 +158,10 @@ PROJECTS: list[dict[str, Any]] = [
     },
     {
         "slug": "aether-product-launch",
+        "kind": Project.Kind.CONCEPT,
         "title": "Aether Product Launch",
         "industry": "Consumer hardware",
-        "status": Project.Status.CONCEPT,
+        "status": Project.Status.NOT_LIVE,
         "live_url": "",
         "summary": "A single-page marketing concept focusing on hardware releases.",
         "solution": (

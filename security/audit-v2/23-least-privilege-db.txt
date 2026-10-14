@@ -1,0 +1,38 @@
+Least-privilege DB role drill on the local Postgres 16 (throwaway db af_lp, random local passwords not shown).
+1) superuser creates the owner role (stands in for Neon's database owner) and database
+NOTICE:  database "af_lp" does not exist, skipping
+NOTICE:  role "adyraforge_app" does not exist, skipping
+NOTICE:  role "af_owner" does not exist, skipping
+   ok
+2) owner runs deploy/neon_app_role.sql (database name and password substituted)
+CREATE ROLE
+REVOKE
+GRANT
+GRANT
+GRANT
+GRANT
+ALTER DEFAULT PRIVILEGES
+ALTER DEFAULT PRIVILEGES
+    rolname     | rolsuper | rolcreatedb | rolcreaterole | rolbypassrls | member_of_any_role 
+----------------+----------+-------------+---------------+--------------+--------------------
+ adyraforge_app | f        | f           | f             | f            | f
+(1 row)
+
+3) release command: migrate + createcachetable as the owner (MIGRATION_DATABASE_URL)
+  Applying portfolio.0004_public_image_decode_validation... OK
+  Applying sessions.0001_initial... OK
+   (createcachetable printed nothing; "exit=1" here was grep finding no lines, not a failure. Step 4 cache set/get proves the table exists.)
+4) the app role: rows, cache, sessions work; schema changes are refused
+28 objects imported automatically (use -v 2 for details).
+
+   CRUD insert/update ok, id 1 | select True
+   delete ok
+   cache set/get 1
+   session create ok
+   refused: CREATE TABLE evil (id int) -> ProgrammingError permission denied for schema public
+   refused: DROP TABLE leads_lead -> ProgrammingError must be owner of table leads_lead
+   refused: ALTER TABLE leads_lead ADD COLUMN x int -> ProgrammingError must be owner of table leads_lead
+   refused: TRUNCATE leads_lead -> ProgrammingError permission denied for table leads_lead
+   refused: CREATE ROLE evil2 -> ProgrammingError permission denied to create role
+5) cleanup
+   dropped af_lp, adyraforge_app, af_owner

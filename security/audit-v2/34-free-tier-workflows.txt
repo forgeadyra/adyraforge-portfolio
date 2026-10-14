@@ -1,0 +1,27 @@
+Free-tier operations rehearsal: the exact commands of .github/workflows/deploy-backend.yml and
+maintenance.yml, run on the production image (working tree on top of 4cf4fb7) against a throwaway TLS
+Postgres 16 with the deploy/neon_app_role.sql roles. Only DJANGO_ENV=maintenance, DATABASE_URL
+and a random SECRET_KEY are set, as in the workflows. Passwords are random and not shown.
+
+1) deploy-backend.yml: migrate + createcachetable as the database OWNER
+  Applying portfolio.0004_public_image_decode_validation... OK
+  Applying portfolio.0005_concept_projects_honesty... OK
+  Applying sessions.0001_initial... OK
+   exit=0
+
+2) seed: one expired and one live session (as the app role, via the ORM)
+
+   sessions before: 2 | expired: 1
+
+3) maintenance.yml: manage.py clearsessions as the APP role
+
+   sessions after: 1 | expired: 0
+   exit=0
+
+4) the app role cannot migrate (schema changes need the owner):
+
+   refused: ProgrammingError permission denied for schema public
+
+5) maintenance settings refuse a non-TLS URL:
+django.core.exceptions.ImproperlyConfigured: Refusing to run maintenance:
+- DATABASE_URL must set sslmode=require (or verify-ca / verify-full).

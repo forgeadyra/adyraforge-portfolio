@@ -1,0 +1,15 @@
+$ npm run lint && npm run typecheck && npm test   (HEAD 7e7a15c)
+lint: ok
+typecheck: ok
+ Test Files  4 passed (4)
+      Tests  29 passed (29)
+
+$ npm run build   (production; Sentry enabled with a dummy public DSN to measure its cost)
+Route (app)                                 Size  First Load JS  Revalidate  Expire
+┌ ○ /                                    4.56 kB         117 kB          1h      1y
+├ ƒ /monitoring                            150 B         104 kB
++ First Load JS shared by all             104 kB
+  ├ chunks/1255-1c939688ef5ca7f7.js      46.2 kB
+  ├ chunks/4bd1b696-100b9d70ed4e49c1.js  54.2 kB
+ƒ Middleware                             34.6 kB
+exit=0

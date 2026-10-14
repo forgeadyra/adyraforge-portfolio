@@ -84,6 +84,13 @@ PLANNER = {
 }
 
 
+def test_planner_is_throttled_10_per_hour(human) -> None:
+    codes = [post("/api/leads/planner/", PLANNER).status_code for _ in range(11)]
+    assert codes == [201] * 10 + [429]
+    blocked = post("/api/leads/planner/", PLANNER)
+    assert blocked.status_code == 429 and int(blocked["Retry-After"]) > 0
+
+
 def test_planner_without_contact_stores_anonymous_submission(human) -> None:
     resp = post("/api/leads/planner/", PLANNER)
     assert resp.status_code == 201
@@ -130,3 +137,33 @@ def test_turnstile_verification_parses_success() -> None:
     sent = opened.call_args.args[0].data.decode()
     assert "secret=" in sent and "remoteip" not in sent  # visitor IP never shared
     assert turnstile.verify_turnstile("") is False
+
+
+@pytest.mark.parametrize(
+    "body", [b"[true]", b'"success"', b"null", b'{"success": "true"}', b"<html>"]
+)
+def test_turnstile_unexpected_responses_fail_closed(body: bytes) -> None:
+    fake = mock.MagicMock()
+    fake.__enter__.return_value = fake
+    fake.read.return_value = body
+    with mock.patch("apps.leads.turnstile.urlopen", return_value=fake):
+        assert turnstile.verify_turnstile("token") is False
+
+
+@pytest.mark.parametrize(
+    ("reported", "expected", "ok"),
+    [
+        ("adyraforge.netlify.app", "adyraforge.netlify.app", True),
+        ("evil.example", "adyraforge.netlify.app", False),  # token solved on another site
+        (None, "adyraforge.netlify.app", False),
+        ("example.com", "", True),  # not enforced (dev / Cloudflare test keys)
+    ],
+)
+def test_turnstile_token_must_come_from_our_hostname(settings, reported, expected, ok) -> None:
+    settings.TURNSTILE_EXPECTED_HOSTNAME = expected
+    fake = mock.MagicMock()
+    fake.__enter__.return_value = fake
+    body = {"success": True} | ({"hostname": reported} if reported else {})
+    fake.read.return_value = json.dumps(body).encode()
+    with mock.patch("apps.leads.turnstile.urlopen", return_value=fake):
+        assert turnstile.verify_turnstile("token") is ok

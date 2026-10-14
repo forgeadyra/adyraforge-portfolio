@@ -25,4 +25,8 @@ def verify_turnstile(token: str) -> bool:
     except (URLError, TimeoutError, ValueError):
         log.warning("Turnstile verification unavailable; rejecting submission")
         return False
-    return payload.get("success") is True
+    # Anything but {"success": true} is a rejection, including a non-object body.
+    if not isinstance(payload, dict) or payload.get("success") is not True:
+        return False
+    expected = settings.TURNSTILE_EXPECTED_HOSTNAME
+    return not expected or payload.get("hostname") == expected

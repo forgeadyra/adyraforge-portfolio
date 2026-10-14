@@ -4,7 +4,7 @@ Kept free of Django settings imports so it can be unit-tested directly.
 Error messages name the setting, never its value.
 """
 
-from urllib.parse import urlparse
+from urllib.parse import parse_qs, urlparse
 
 from django.core.exceptions import ImproperlyConfigured
 
@@ -17,6 +17,9 @@ _GUESSABLE_ADMIN_PATHS = {
     "backend",
     "dashboard",
 }
+MAX_TRUSTED_PROXY_COUNT = 5
+MIN_PROXY_SECRET_LENGTH = 32
+_SSL_MODES = {"require", "verify-ca", "verify-full"}
 _POSTGRES_SCHEMES = {"postgres", "postgresql", "pgsql", "postgis"}
 MIN_SECRET_KEY_LENGTH = 50
 MIN_SECRET_KEY_UNIQUE_CHARS = 5
@@ -39,6 +42,17 @@ def secret_key_problem(secret_key: str) -> str | None:
     return None
 
 
+def database_url_problem(database_url: str) -> str | None:
+    """PostgreSQL over TLS only (production and the maintenance settings)."""
+    if not database_url:
+        return "DATABASE_URL is missing."
+    if urlparse(database_url).scheme not in _POSTGRES_SCHEMES:
+        return "DATABASE_URL must be a PostgreSQL URL."
+    if not set(parse_qs(urlparse(database_url).query).get("sslmode", [])) & _SSL_MODES:
+        return "DATABASE_URL must set sslmode=require (or verify-ca / verify-full)."
+    return None
+
+
 def validate_production_settings(
     *,
     secret_key: str,
@@ -50,7 +64,21 @@ def validate_production_settings(
     csrf_trusted_origins: list[str],
     frontend_url: str,
     email_backend: str,
+    email_host: str,
+    email_host_user: str,
+    email_host_password: str,
+    email_use_tls: bool,
+    email_use_ssl: bool,
     turnstile_secret: str,
+    trusted_proxy_count: str,
+    private_bucket: str,
+    media_bucket: str,
+    media_url: str,
+    storage_access_key_id: str,
+    storage_secret_access_key: str,
+    netlify_proxy_signing_secret: str,
+    default_from_email: str,
+    lead_notify_email: str,
 ) -> None:
     """Raise ImproperlyConfigured listing every problem found."""
     errors: list[str] = []
@@ -64,10 +92,8 @@ def validate_production_settings(
     elif any(h in {"*", "."} for h in hosts):
         errors.append("ALLOWED_HOSTS must not contain wildcards.")
 
-    if not database_url:
-        errors.append("DATABASE_URL is missing.")
-    elif urlparse(database_url).scheme not in _POSTGRES_SCHEMES:
-        errors.append("DATABASE_URL must be a PostgreSQL URL.")
+    if problem := database_url_problem(database_url):
+        errors.append(problem)
 
     if debug:
         errors.append("DEBUG must be False in production.")
@@ -91,12 +117,50 @@ def validate_production_settings(
         errors.append("FRONTEND_URL must be an https:// URL (used in emailed links).")
 
     if any(dev in email_backend for dev in _DEV_EMAIL_BACKENDS):
-        errors.append("EMAIL_URL must point at a real mail server (invites, password reset).")
+        errors.append("EMAIL_BACKEND must be SMTP in production (invites, password reset).")
+    for name, value in (
+        ("EMAIL_HOST", email_host),
+        ("EMAIL_HOST_USER", email_host_user),
+        ("EMAIL_HOST_PASSWORD", email_host_password),
+    ):
+        if not value:
+            errors.append(f"{name} is missing.")
+    if email_use_tls == email_use_ssl:
+        errors.append("Set exactly one of EMAIL_USE_TLS / EMAIL_USE_SSL (never plaintext SMTP).")
 
     if not turnstile_secret:
         errors.append("TURNSTILE_SECRET_KEY is missing.")
     elif turnstile_secret.startswith(_TURNSTILE_TEST_PREFIXES):
         errors.append("TURNSTILE_SECRET_KEY is a Cloudflare test key.")
+
+    if not trusted_proxy_count.isdigit() or int(trusted_proxy_count) > MAX_TRUSTED_PROXY_COUNT:
+        errors.append(
+            f"TRUSTED_PROXY_COUNT must be set explicitly (0-{MAX_TRUSTED_PROXY_COUNT}); "
+            "Render is 1."
+        )
+
+    for name, value in (
+        ("PRIVATE_BUCKET", private_bucket),
+        ("MEDIA_BUCKET", media_bucket),
+        ("STORAGE_ACCESS_KEY_ID", storage_access_key_id),
+        ("STORAGE_SECRET_ACCESS_KEY", storage_secret_access_key),
+    ):
+        if not value:
+            errors.append(f"{name} is missing (uploads must not live on the container disk).")
+    if private_bucket and private_bucket == media_bucket:
+        errors.append("PRIVATE_BUCKET must differ from the public MEDIA_BUCKET.")
+    if not media_url.startswith("https://"):
+        errors.append("MEDIA_URL must be the https:// public origin of MEDIA_BUCKET.")
+
+    if len(netlify_proxy_signing_secret) < MIN_PROXY_SECRET_LENGTH:
+        errors.append(
+            f"NETLIFY_PROXY_SIGNING_SECRET must be set ({MIN_PROXY_SECRET_LENGTH}+ chars) "
+            "and match the Netlify env var, or every visitor shares Netlify's IP."
+        )
+    if "@" not in default_from_email:
+        errors.append("DEFAULT_FROM_EMAIL is missing (must be the sending account's address).")
+    if "@" not in lead_notify_email:
+        errors.append("LEAD_NOTIFY_EMAIL is missing (where new-lead alerts go).")
 
     if errors:
         raise ImproperlyConfigured("Refusing to start in production:\n- " + "\n- ".join(errors))

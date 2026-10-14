@@ -5,15 +5,12 @@ endpoints carry no user data and need no CSRF. A dedicated throttle scope keeps
 scraping in check without starving the frontend's own revalidation.
 """
 
-from django.conf import settings
 from django.db.models import QuerySet
 from rest_framework import viewsets
 from rest_framework.generics import ListAPIView
 from rest_framework.permissions import AllowAny
-from rest_framework.request import Request
-from rest_framework.response import Response
-from rest_framework.throttling import ScopedRateThrottle
-from rest_framework.views import APIView
+
+from apps.core.throttling import ScopedRateThrottle
 
 from .models import Project, Service, Technology, Testimonial
 from .serializers import (
@@ -80,23 +77,3 @@ class PublicTestimonialList(PublicMixin, ListAPIView):
 
     def get_queryset(self) -> QuerySet:
         return Testimonial.objects.published().select_related("project")
-
-
-class PublicStatsView(PublicMixin, APIView):
-    """Proof-bar numbers, computed from real data (nothing hard-coded)."""
-
-    permission_classes = [AllowAny]
-
-    def get(self, request: Request) -> Response:
-        published = Project.objects.published()
-        industries = sorted(
-            {i.strip() for i in published.values_list("industry", flat=True) if i.strip()}
-        )
-        return Response(
-            {
-                "live_projects": published.filter(status=Project.Status.LIVE).count(),
-                "industries": industries,
-                # Only shown when you set RESPONSE_TIME_HOURS: it's a promise.
-                "response_time_hours": settings.RESPONSE_TIME_HOURS,
-            }
-        )

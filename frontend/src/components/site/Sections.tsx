@@ -1,8 +1,10 @@
 import Link from "next/link";
 
-import type { Service, Stats, Testimonial } from "@/lib/content";
+import type { Lighthouse, ProjectCard, Service, Testimonial } from "@/lib/content";
 import { formatPrice } from "@/lib/site";
 
+import { LighthouseScores, formatMeasured } from "./LighthouseScores";
+import { ProjectBadges } from "./ProjectBadges";
 import { Reveal } from "./Reveal";
 
 export function SectionHeading({
@@ -24,34 +26,48 @@ export function SectionHeading({
   );
 }
 
-/** Only real numbers from the API. Anything not set simply isn't shown. */
-export function ProofBar({ stats }: { stats: Stats }) {
-  const items = [
-    stats.live_projects > 0 && { value: String(stats.live_projects), label: "live projects" },
-    stats.industries.length > 0 && {
-      value: String(stats.industries.length),
-      label: "industries served",
-    },
-    stats.response_time_hours && {
-      value: `${stats.response_time_hours}h`,
-      label: "reply to every enquiry",
-    },
-  ].filter(Boolean) as { value: string; label: string }[];
-
-  if (items.length === 0) return null;
+/**
+ * Real Lighthouse mobile scores of live projects, entered in the admin.
+ * Hidden entirely until at least one project has a complete measurement.
+ */
+export function BuiltToPerform({ projects }: { projects: ProjectCard[] }) {
+  const measured = projects.filter(
+    (p): p is ProjectCard & { lighthouse: Lighthouse } => p.lighthouse !== null,
+  );
+  if (measured.length === 0) return null;
   return (
-    <section aria-label="At a glance" className="border-y border-ink/10 bg-surface/60">
-      <dl className="mx-auto flex max-w-6xl flex-wrap justify-around gap-6 px-5 py-6 text-center">
-        {items.map((item) => (
-          <div key={item.label}>
-            <dt className="sr-only">{item.label}</dt>
-            <dd>
-              <span className="font-display text-3xl font-bold text-gold">{item.value}</span>
-              <span className="mt-1 block text-sm text-muted">{item.label}</span>
-            </dd>
-          </div>
-        ))}
-      </dl>
+    <section aria-labelledby="perform" className="border-y border-ink/10 bg-surface/60">
+      <div className="mx-auto max-w-6xl px-5 py-12">
+        <SectionHeading
+          eyebrow="Built to perform"
+          title="Lighthouse scores, measured"
+          id="perform"
+        />
+        <p className="mt-3 max-w-2xl text-sm text-muted">
+          Google Lighthouse, mobile, run against each live site. Scores change over time; the date
+          shows when each was measured.
+        </p>
+        <ul className="mt-8 grid gap-5 md:grid-cols-2 lg:grid-cols-3">
+          {measured.map((p) => (
+            <li key={p.slug} className="rounded-xl border border-ink/10 bg-base p-5">
+              <div className="flex items-start justify-between gap-3">
+                <h3 className="font-display text-lg font-bold">
+                  <Link href={`/work/${p.slug}`} className="text-ink no-underline hover:text-gold">
+                    {p.title}
+                  </Link>
+                </h3>
+                <ProjectBadges project={p} />
+              </div>
+              <div className="mt-5">
+                <LighthouseScores scores={p.lighthouse} compact />
+              </div>
+              <p className="mt-4 text-xs text-muted">
+                Measured {formatMeasured(p.lighthouse.measured_on)}
+              </p>
+            </li>
+          ))}
+        </ul>
+      </div>
     </section>
   );
 }

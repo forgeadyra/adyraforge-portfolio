@@ -62,6 +62,12 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
+    # Header-only middlewares first, so /healthz/ (answered next) still gets them.
+    "django.middleware.clickjacking.XFrameOptionsMiddleware",
+    "csp.middleware.CSPMiddleware",
+    "apps.core.middleware.PermissionsPolicyMiddleware",
+    # Before CommonMiddleware, which validates the Host header on every request.
+    "apps.core.middleware.HealthCheckMiddleware",
     "whitenoise.middleware.WhiteNoiseMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "corsheaders.middleware.CorsMiddleware",
@@ -70,9 +76,6 @@ MIDDLEWARE = [
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django_otp.middleware.OTPMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
-    "django.middleware.clickjacking.XFrameOptionsMiddleware",
-    "csp.middleware.CSPMiddleware",
-    "apps.core.middleware.PermissionsPolicyMiddleware",
     # Must be last so it sees the final authentication outcome.
     "axes.middleware.AxesMiddleware",
 ]
@@ -138,6 +141,22 @@ AXES_USERNAME_CALLABLE = "apps.accounts.axes.lockout_username"
 # Our own 429 JSON: axes' default sets Access-Control-Allow-Origin "*".
 AXES_LOCKOUT_CALLABLE = "apps.accounts.lockout.lockout_response"
 AXES_SENSITIVE_PARAMETERS = ["password", "otp_token"]
+
+# Client IP behind reverse proxies (axes, throttles, IP hash all agree on it;
+# apps.core.security.client_ip). Two paths reach the API:
+#   browser -> Netlify (signed proxy) -> Render -> Django
+#   server-side / direct -> Render -> Django
+# TRUSTED_PROXY_COUNT counts only the hops on the DIRECT path: 0 locally (no
+# X-Forwarded-For trusted), 1 on Render. Too high lets clients spoof their IP, too
+# low makes everyone share the proxy's IP. The Netlify hop is not counted: requests
+# signed by our Netlify site (NETLIFY_PROXY_SIGNING_SECRET) use Netlify's
+# X-Nf-Client-Connection-Ip instead, because the Render origin is publicly reachable
+# and a fixed count of 2 would let direct callers pick their own IP.
+TRUSTED_PROXY_COUNT_RAW = os.environ.get("TRUSTED_PROXY_COUNT", "")
+TRUSTED_PROXY_COUNT = int(TRUSTED_PROXY_COUNT_RAW) if TRUSTED_PROXY_COUNT_RAW.isdigit() else 0
+# Read raw: same value as the Netlify env var named in netlify.toml `signed = ...`.
+NETLIFY_PROXY_SIGNING_SECRET = os.environ.get("NETLIFY_PROXY_SIGNING_SECRET", "")
+AXES_CLIENT_IP_CALLABLE = "apps.core.security.client_ip"
 
 # --- Sessions, CSRF, cookies (rule 4) -----------------------------------------
 SESSION_COOKIE_HTTPONLY = True
@@ -208,13 +227,16 @@ REST_FRAMEWORK = {
     ],
     "DEFAULT_PERMISSION_CLASSES": ["rest_framework.permissions.IsAuthenticated"],
     "DEFAULT_RENDERER_CLASSES": ["rest_framework.renderers.JSONRenderer"],
-    "DEFAULT_PARSER_CLASSES": ["rest_framework.parsers.JSONParser"],
+    "DEFAULT_PARSER_CLASSES": ["apps.core.parsers.SafeJSONParser"],
     "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
     "PAGE_SIZE": 50,
+    # Without this DRF keys throttles on the raw, client-supplied X-Forwarded-For
+    # header (audit v2, H-1). 0 = REMOTE_ADDR only.
+    "NUM_PROXIES": TRUSTED_PROXY_COUNT,
     "DEFAULT_THROTTLE_CLASSES": [
-        "rest_framework.throttling.AnonRateThrottle",
-        "rest_framework.throttling.UserRateThrottle",
-        "rest_framework.throttling.ScopedRateThrottle",
+        "apps.core.throttling.AnonRateThrottle",
+        "apps.core.throttling.UserRateThrottle",
+        "apps.core.throttling.ScopedRateThrottle",
     ],
     "DEFAULT_THROTTLE_RATES": {
         "anon": env("THROTTLE_ANON", default="60/min"),
@@ -235,18 +257,31 @@ REST_FRAMEWORK = {
 # --- Email, links, bot protection --------------------------------------------
 # Frontend origin used in emailed links (invite, password reset).
 FRONTEND_URL = env("FRONTEND_URL", default="http://localhost:3000").rstrip("/")
-# EMAIL_URL e.g. smtp+tls://user:pass@smtp.example.com:587 (console in dev).
-EMAIL_URL = env("EMAIL_URL", default="consolemail://")
-vars().update(env.email_url_config(EMAIL_URL))
+# SMTP from discrete env vars (Gmail with an app password in production: see
+# DEPLOY.md). Development forces the console backend; production refuses to boot
+# without a TLS/SSL-secured SMTP server, a sender and a lead-notification address.
+EMAIL_BACKEND = env("EMAIL_BACKEND", default="django.core.mail.backends.smtp.EmailBackend")
+EMAIL_HOST = env("EMAIL_HOST", default="")
+EMAIL_PORT = env.int("EMAIL_PORT", default=587)
+EMAIL_USE_TLS = env.bool("EMAIL_USE_TLS", default=True)
+EMAIL_USE_SSL = env.bool("EMAIL_USE_SSL", default=False)
+EMAIL_HOST_USER = env("EMAIL_HOST_USER", default="")
+# Read raw: a password may start with "$" (django-environ would treat it as a reference).
+EMAIL_HOST_PASSWORD = os.environ.get("EMAIL_HOST_PASSWORD", "")
 EMAIL_TIMEOUT = 10
-DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", default="AdyraForge <noreply@adyraforge.com>")
+# Production must set it explicitly (Gmail rewrites any From that isn't the account).
+DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", default="AdyraForge <webmaster@localhost>")
+# Where new-lead notifications go (used by the planner/contact notifications).
+LEAD_NOTIFY_EMAIL = env("LEAD_NOTIFY_EMAIL", default="")
 SERVER_EMAIL = DEFAULT_FROM_EMAIL
 # Send auth emails off the request thread so timing can't reveal account existence.
 EMAIL_SEND_ASYNC = env.bool("EMAIL_SEND_ASYNC", default=True)
 # Read raw (may start with "$"). Cloudflare's public test keys work in development.
 TURNSTILE_SECRET_KEY = os.environ.get("TURNSTILE_SECRET_KEY", "")
-# Public reply-time promise for the proof bar. Unset = not shown.
-RESPONSE_TIME_HOURS = env.int("RESPONSE_TIME_HOURS", default=None)
+# Hostname a passed Turnstile challenge must report (production: FRONTEND_URL's host),
+# so a token solved on another site can't be replayed here. Empty = not checked
+# (Cloudflare's test keys report a dummy hostname).
+TURNSTILE_EXPECTED_HOSTNAME = ""
 
 # --- i18n / static ------------------------------------------------------------
 LANGUAGE_CODE = "en-us"
@@ -266,8 +301,14 @@ PRIVATE_MEDIA_ROOT = env.path("PRIVATE_MEDIA_ROOT", default=str(BASE_DIR / "priv
 
 STORAGES = {
     "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
+    # Client files and invoices (apps.core.storage.private_storage). Production: a
+    # private bucket with presigned URLs (production.py).
+    "private": {"BACKEND": "apps.core.storage.PrivateMediaStorage"},
     "staticfiles": {"BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"},
 }
+# Lifetime of a presigned bucket URL handed out by the signed download view. Short:
+# it is issued only after the per-user, ownership-checked link has been verified.
+PRIVATE_URL_EXPIRE = 60
 
 # --- Logging (rule 14): no request bodies, cookies or credentials -------------
 LOGGING = {

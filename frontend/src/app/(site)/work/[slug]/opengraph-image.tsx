@@ -10,7 +10,7 @@ export default async function Image({ params }: { params: Promise<{ slug: string
   const project = await content.project((await params).slug);
   return ogCard({
     eyebrow: project
-      ? `Case study · ${project.status === "live" ? "Live" : "Concept"}`
+      ? `Case study · ${project.kind === "concept" ? "Concept" : "Client project"}`
       : "Case study",
     title: project?.title ?? "AdyraForge",
     footer: project?.industry || "Web project",

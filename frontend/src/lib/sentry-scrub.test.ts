@@ -4,17 +4,17 @@ import { DATA_COLLECTION, parseDsn, scrubBreadcrumb, scrubEvent, scrubUrl } from
 
 describe("scrubUrl", () => {
   it("removes tokens from invite, reset and download URLs and query strings", () => {
-    expect(scrubUrl("https://adyraforge.com/invite/abc.DEF-123")).toBe(
-      "https://adyraforge.com/invite/[Filtered]",
+    expect(scrubUrl("https://adyraforge.netlify.app/invite/abc.DEF-123")).toBe(
+      "https://adyraforge.netlify.app/invite/[Filtered]",
     );
-    expect(scrubUrl("https://adyraforge.com/reset-password/MQ/c4a-9f2e1?x=1")).toBe(
-      "https://adyraforge.com/reset-password/[Filtered]/[Filtered]?[Filtered]",
+    expect(scrubUrl("https://adyraforge.netlify.app/reset-password/MQ/c4a-9f2e1?x=1")).toBe(
+      "https://adyraforge.netlify.app/reset-password/[Filtered]/[Filtered]?[Filtered]",
     );
-    expect(scrubUrl("https://api.adyraforge.com/api/files/eyJ.sig/")).toBe(
-      "https://api.adyraforge.com/api/files/[Filtered]/",
+    expect(scrubUrl("https://adyraforge.netlify.app/api/files/eyJ.sig/")).toBe(
+      "https://adyraforge.netlify.app/api/files/[Filtered]/",
     );
-    expect(scrubUrl("https://adyraforge.com/work/medicare-plus")).toBe(
-      "https://adyraforge.com/work/medicare-plus",
+    expect(scrubUrl("https://adyraforge.netlify.app/work/medicare-plus")).toBe(
+      "https://adyraforge.netlify.app/work/medicare-plus",
     );
   });
 });
@@ -23,7 +23,7 @@ describe("scrubEvent", () => {
   it("drops cookies, headers, bodies and user, and scrubs breadcrumbs", () => {
     const event = {
       request: {
-        url: "https://adyraforge.com/invite/secret-token",
+        url: "https://adyraforge.netlify.app/invite/secret-token",
         cookies: { sessionid: "s3cr3t" },
         headers: { Cookie: "sessionid=s3cr3t" },
         data: { password: "hunter2hunter2" },

@@ -1,6 +1,5 @@
 # Netlify build for the v2 frontend. Only frontend/ is built and published, so no
-# other repo file (backend/, CLAUDE.md, security/, ...) can ever be served.
-# Security headers come from frontend/next.config.ts via Netlify's Next.js runtime.
+# other repo file (backend/, CLAUDE.md, security/, legacy/, ...) can ever be served.
 [build]
   base = "frontend"
   command = "npm run build"
@@ -14,32 +13,36 @@
 [build.environment]
   NODE_VERSION = "22"
   NEXT_TELEMETRY_DISABLED = "1"
-  # Public, non-secret values. NEXT_PUBLIC_TURNSTILE_SITE_KEY (also public) is set
-  # in the Netlify UI. Nothing secret ever goes in this file or in NEXT_PUBLIC_*.
-  NEXT_PUBLIC_API_URL = "https://api.adyraforge.com"
-  NEXT_PUBLIC_SITE_URL = "https://adyraforge.com"
-  # Public media bucket's custom domain (Cloudflare R2 / S3); see DEPLOY.md.
-  NEXT_PUBLIC_MEDIA_URL = "https://media.adyraforge.com"
+  # Everything site-specific lives in the Netlify UI (DEPLOY.md), never here, so a
+  # move to a custom domain is env-only: NEXT_PUBLIC_SITE_URL, API_INTERNAL_URL,
+  # NEXT_PUBLIC_MEDIA_URL, NEXT_PUBLIC_TURNSTILE_SITE_KEY, NEXT_PUBLIC_SENTRY_DSN and
+  # NETLIFY_PROXY_SIGNING_SECRET (Runtime scope: it signs the proxy below).
+
+# The browser only ever talks to this site. /api/* is proxied to Django on Render
+# with first-party cookies passing through. Every proxied request is signed
+# (x-nf-sign, HS256 with NETLIFY_PROXY_SIGNING_SECRET); Django trusts Netlify's
+# client-IP header only when that signature verifies (apps/core/security.py).
+# The target is the Render service's own URL: if Render assigned a different
+# *.onrender.com name, change it here (and API_INTERNAL_URL in the Netlify UI).
+[[redirects]]
+  from = "/api/*"
+  to = "https://adyraforge-api.onrender.com/api/:splat"
+  status = 200
+  force = true
+  signed = "NETLIFY_PROXY_SIGNING_SECRET"
 
 # Same security headers as frontend/next.config.ts (production values), applied by
 # Netlify's edge as well, so static assets and CDN-cached pages carry them too.
 # Keep both in sync: frontend/src/lib/netlify-headers.test.ts fails if they differ.
-# img-src: the API origin plus the public media bucket's custom domain.
+# No site domain appears here: API calls are same-origin ('self'); img-src allows
+# the Backblaze B2 media host family.
 [[headers]]
   for = "/*"
   [headers.values]
-    Content-Security-Policy = "default-src 'self'; script-src 'self' 'unsafe-inline' https://challenges.cloudflare.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://api.adyraforge.com https://media.adyraforge.com; font-src 'self'; connect-src 'self' https://api.adyraforge.com https://challenges.cloudflare.com; frame-src https://challenges.cloudflare.com; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests"
+    Content-Security-Policy = "default-src 'self'; script-src 'self' 'unsafe-inline' https://challenges.cloudflare.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://*.backblazeb2.com; font-src 'self'; connect-src 'self' https://challenges.cloudflare.com; frame-src https://challenges.cloudflare.com; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests"
     Strict-Transport-Security = "max-age=31536000; includeSubDomains; preload"
     X-Frame-Options = "DENY"
     X-Content-Type-Options = "nosniff"
     Referrer-Policy = "strict-origin-when-cross-origin"
     Cross-Origin-Opener-Policy = "same-origin"
     Permissions-Policy = "accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=(), interest-cohort=()"
-
-# Force HTTPS on the apex and www (Netlify also redirects http -> https once the
-# certificate is issued; "Force HTTPS" stays on in the domain settings).
-[[redirects]]
-  from = "https://www.adyraforge.com/*"
-  to = "https://adyraforge.com/:splat"
-  status = 301
-  force = true

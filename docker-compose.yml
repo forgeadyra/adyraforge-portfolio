@@ -42,9 +42,11 @@ services:
       context: ./frontend
       target: dev
     environment:
-      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8000}
-      # Server-side (middleware) calls go container-to-container.
+      # Server-side calls (content, middleware) and the same-origin /api proxy go
+      # container-to-container. The browser only talks to localhost:3000.
       API_INTERNAL_URL: http://backend:8000
+      # Django serves /media itself in development.
+      NEXT_PUBLIC_MEDIA_URL: ${NEXT_PUBLIC_MEDIA_URL:-http://localhost:8000}
       NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL:-http://localhost:3000}
       # Cloudflare's public always-pass test site key (development only).
       NEXT_PUBLIC_TURNSTILE_SITE_KEY: ${NEXT_PUBLIC_TURNSTILE_SITE_KEY:-1x00000000000000000000AA}

@@ -7,14 +7,20 @@
  * list endpoint (wrong URL, service not deployed) and an empty project list all
  * abort `next build`. CI builds without a backend set NEXT_BUILD_WITHOUT_API=1 to
  * render empty states; Netlify never sets it.
+ *
+ * Render's free instance sleeps; during `next build` each request waits up to
+ * BUILD_WAKE_BUDGET_MS for it to wake (retrying network errors and 502/503/504).
+ * At runtime (ISR revalidation inside a short-lived Netlify function) there is no
+ * long wait: a failure simply keeps serving the last good page.
  */
+
+import { wakeFetch } from "./wake-fetch";
 
 export const REVALIDATE_SECONDS = 3600;
 
-const API = (process.env.API_INTERNAL_URL ?? process.env.NEXT_PUBLIC_API_URL ?? "").replace(
-  /\/+$/,
-  "",
-);
+// Server-side only (the Render origin in production); never the browser-facing site.
+const API = (process.env.API_INTERNAL_URL ?? "").replace(/\/+$/, "");
+export const BUILD_WAKE_BUDGET_MS = 90_000;
 const OFFLINE = process.env.NEXT_BUILD_WITHOUT_API === "1";
 
 export interface Technology {
@@ -95,9 +101,13 @@ const BUILDING = process.env.NEXT_PHASE === "phase-production-build";
  */
 async function get<T>(path: string, fallback: T, notFound?: T): Promise<T> {
   if (OFFLINE) return fallback;
-  const res = await fetch(`${API}/api/public/${path}`, {
+  const init = {
     headers: { accept: "application/json" },
     next: { revalidate: REVALIDATE_SECONDS, tags: ["content"] },
+  } as RequestInit;
+  const res = await wakeFetch(`${API}/api/public/${path}`, init, {
+    budgetMs: BUILDING ? BUILD_WAKE_BUDGET_MS : 0,
+    attemptTimeoutMs: BUILDING ? 70_000 : 8_000,
   });
   if (res.status === 404 && notFound !== undefined) return notFound;
   if (!res.ok) throw new Error(`Content API returned ${res.status} for ${path}`);

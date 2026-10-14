@@ -129,7 +129,9 @@ export function createApiClient({ baseUrl, fetchImpl }: ClientConfig) {
 
 export type ApiClient = ReturnType<typeof createApiClient>;
 
-export const api = createApiClient({ baseUrl: process.env.NEXT_PUBLIC_API_URL ?? "" });
+// Same-origin: the browser only ever talks to the site's own host, which proxies
+// /api/* to Django (Netlify in production). Cookies stay first-party.
+export const api = createApiClient({ baseUrl: "" });
 
 // --- Endpoint types -----------------------------------------------------------
 
